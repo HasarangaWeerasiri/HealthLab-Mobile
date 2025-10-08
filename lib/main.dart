@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+<<<<<<< Updated upstream
+=======
+import 'screens/splash_screen.dart';
+import 'screens/map_page.dart';
+import 'providers/danger_zone_provider.dart';
+>>>>>>> Stashed changes
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +23,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+<<<<<<< Updated upstream
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
@@ -37,6 +45,23 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       home: const MyHomePage(title: 'Flutter Demo Home Page'),
+=======
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DangerZoneProvider()),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        ),
+        home: const SplashScreen(),
+        routes: {
+          '/map': (context) => const MapPage(),
+        },
+      ),
+>>>>>>> Stashed changes
     );
   }
 }
