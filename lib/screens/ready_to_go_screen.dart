@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import '../utils/app_utils.dart';
+import 'homepage_screen.dart';
 
 class ReadyToGoScreen extends StatelessWidget {
   const ReadyToGoScreen({super.key});
@@ -40,7 +41,10 @@ class ReadyToGoScreen extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // TODO: Navigate to home when ready
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomepageScreen()),
+                    );
                   },
                   icon: const Icon(Icons.arrow_right_alt_rounded, size: 24),
                   label: const Text('Start using HealthLab'),

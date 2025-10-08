@@ -4,38 +4,71 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_utils.dart';
 import '../services/auth_service.dart';
-import 'email_verification_screen.dart';
-import 'username_screen.dart';
-import 'sign_in_screen.dart';
 import 'ready_to_go_screen.dart';
+import 'username_screen.dart';
 
-class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+class SignInScreen extends StatefulWidget {
+  const SignInScreen({super.key});
 
   @override
-  State<SignUpScreen> createState() => _SignUpScreenState();
+  State<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignUpScreenState extends State<SignUpScreen> {
+class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _emailOrUsernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _submitting = false;
 
-  Future<void> _registerWithEmail() async {
+  Future<void> _signInWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
+    
     try {
-      final email = _emailController.text.trim();
+      final emailOrUsername = _emailOrUsernameController.text.trim();
       final password = _passwordController.text;
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
-      final user = FirebaseAuth.instance.currentUser;
-      await user?.sendEmailVerification();
       
-      // Save login state to local storage (even though email not verified yet)
+      String? email;
+      
+      // Check if input is email or username
+      if (emailOrUsername.contains('@')) {
+        // It's an email
+        email = emailOrUsername;
+      } else {
+        // It's a username, find the email from Firestore
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: emailOrUsername)
+            .limit(1)
+            .get();
+        
+        if (userDoc.docs.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Username not found')),
+          );
+          return;
+        }
+        
+        email = userDoc.docs.first.data()['email'] as String?;
+        if (email == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invalid user data')),
+          );
+          return;
+        }
+      }
+      
+      // Sign in with email and password
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Save login state to local storage
+      final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final authService = AuthService();
         await authService.saveUserData(user);
@@ -43,11 +76,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
       
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        slideRoute(EmailVerificationScreen(email: email)),
+        MaterialPageRoute(builder: (context) => const ReadyToGoScreen()),
       );
+      
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? 'Sign up failed')));
+      String errorMessage;
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage = 'No user found with this email/username';
+          break;
+        case 'wrong-password':
+          errorMessage = 'Incorrect password';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Invalid email format';
+          break;
+        case 'user-disabled':
+          errorMessage = 'This account has been disabled';
+          break;
+        case 'too-many-requests':
+          errorMessage = 'Too many failed attempts. Please try again later';
+          break;
+        default:
+          errorMessage = e.message ?? 'Sign in failed';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('An unexpected error occurred')),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -75,26 +136,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final authService = AuthService();
         await authService.saveUserData(user);
         
-        // Check if user already has a profile (existing user)
+        // Check if user has a username, if not, go to username screen
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
         
-        if (userDoc.exists && userDoc.data()?['username'] != null) {
-          // User already exists with a username, log them in directly
+        if (!userDoc.exists || userDoc.data()?['username'] == null) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const ReadyToGoScreen()),
+            MaterialPageRoute(builder: (context) => UsernameScreen(isGoogleSignUp: true)),
           );
           return;
         }
       }
       
-      // New user or user without username, go to username screen
-      Navigator.of(context).pushReplacement(slideRoute(UsernameScreen(isGoogleSignUp: true)));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const ReadyToGoScreen()),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? 'Google sign-in failed')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Google sign-in failed')),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -102,10 +165,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
+    _emailOrUsernameController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -121,12 +182,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
             children: <Widget>[
               const SizedBox(height: 16),
               const Text(
-                'Welcome!',
+                'Welcome back!',
                 style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white),
               ),
               const SizedBox(height: 4),
               Text(
-                "Let's create you an account",
+                "Let's get you signed in",
                 style: TextStyle(color: Colors.white.withOpacity(0.7)),
               ),
               const SizedBox(height: 24),
@@ -134,27 +195,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 key: _formKey,
                 child: Column(
                   children: <Widget>[
-                    _Field(label: 'Full name', controller: _nameController, keyboardType: TextInputType.name),
-                    const SizedBox(height: 14),
-                    _Field(label: 'Email', controller: _emailController, keyboardType: TextInputType.emailAddress,
-                      validator: (v){
-                        if (v == null || v.trim().isEmpty) return 'Email is required';
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v.trim())) return 'Enter a valid email';
+                    _Field(
+                      label: 'Email or Username',
+                      controller: _emailOrUsernameController,
+                      keyboardType: TextInputType.text,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Email or username is required';
                         return null;
                       },
                     ),
                     const SizedBox(height: 14),
-                    _Field(label: 'Password', controller: _passwordController, obscure: true,
-                      validator: (v){
+                    _Field(
+                      label: 'Password',
+                      controller: _passwordController,
+                      obscure: true,
+                      validator: (v) {
                         if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 6) return 'Min 6 characters';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    _Field(label: 'Re–enter Password', controller: _confirmPasswordController, obscure: true,
-                      validator: (v){
-                        if (v != _passwordController.text) return 'Passwords do not match';
                         return null;
                       },
                     ),
@@ -165,18 +221,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submitting ? null : _registerWithEmail,
+                  onPressed: _submitting ? null : _signInWithEmail,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.darkGreen,
                     foregroundColor: AppColors.lightGreen,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: _submitting ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('continue', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  child: _submitting 
+                      ? const SizedBox(
+                          height: 20, 
+                          width: 20, 
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                        ) 
+                      : const Text(
+                          'Sign In', 
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
-              Center(child: Text('Or signup with', style: TextStyle(color: Colors.white.withOpacity(0.7)))),
+              Center(child: Text('Or sign in with', style: TextStyle(color: Colors.white.withOpacity(0.7)))),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -187,34 +252,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const SizedBox(width: 18),
                   _SocialButton(asset: 'assets/social/instagram.png', onTap: null),
                 ],
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: RichText(
-                  text: TextSpan(
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                    children: [
-                      const TextSpan(text: 'Already have an account? '),
-                      WidgetSpan(
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pushReplacement(
-                              slideRoute(const SignInScreen()),
-                            );
-                          },
-                          child: const Text(
-                            'Sign In',
-                            style: TextStyle(
-                              color: AppColors.primaryGreen,
-                              fontWeight: FontWeight.w600,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
               const SizedBox(height: 20),
             ],
@@ -232,7 +269,13 @@ class _Field extends StatelessWidget {
   final bool obscure;
   final String? Function(String?)? validator;
 
-  const _Field({required this.label, required this.controller, this.keyboardType, this.obscure = false, this.validator});
+  const _Field({
+    required this.label, 
+    required this.controller, 
+    this.keyboardType, 
+    this.obscure = false, 
+    this.validator
+  });
 
   @override
   Widget build(BuildContext context) {
