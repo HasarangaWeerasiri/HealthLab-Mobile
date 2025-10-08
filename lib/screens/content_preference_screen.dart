@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_utils.dart';
+import 'ready_to_go_screen.dart';
 
 class ContentPreferenceScreen extends StatefulWidget {
   const ContentPreferenceScreen({super.key});
@@ -49,10 +50,7 @@ class _ContentPreferenceScreenState extends State<ContentPreferenceScreen> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferences saved')),
-      );
-      // TODO: Navigate to home when ready
+      Navigator.of(context).pushReplacement(slideRoute(const ReadyToGoScreen()));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
