@@ -12,7 +12,20 @@
           "package_name": "com.example.healthlab"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "699921010569-1jop4vrmvp9s24nrvb849ansdlqj2el0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.healthlab",
+            "certificate_hash": "54cfd32fe8f270c8fd3dd9be83b5f2e1f63db86d"
+          }
+        },
+        {
+          "client_id": "699921010569-d0eph3rla7dvv9no2n2iv91hcnl8m8vo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBG7kCye0p1G3MFgMvaelnqsigCWu8nN0g"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "699921010569-d0eph3rla7dvv9no2n2iv91hcnl8m8vo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "699921010569-05ghs74lbi1jgo20nrnmf8ls7bcfsma7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.healthlab"
+              }
+            }
+          ]
         }
       }
     }
