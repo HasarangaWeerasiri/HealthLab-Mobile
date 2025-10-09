@@ -17,19 +17,15 @@ class AuthService {
   // Check if user is logged in (both Firebase and local storage)
   Future<bool> isLoggedIn() async {
     try {
-      // Check Firebase auth state
+      // Check Firebase auth state only
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         await _clearLocalData();
         return false;
       }
 
-      // Check verified flag from Firestore instead of Firebase emailVerified
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      final isVerified = (userDoc.data()?['emailVerified'] as bool?) ?? false;
-      if (!isVerified) {
-        return false;
-      }
+      // Ensure local cache exists
+      await saveUserData(user);
 
       // Check local storage
       final prefs = await SharedPreferences.getInstance();
@@ -41,13 +37,9 @@ class AuthService {
         return true;
       }
 
-      // If Firebase user exists but no local data, save it
-      if (((await FirebaseFirestore.instance.collection('users').doc(user.uid).get()).data()?['emailVerified'] as bool?) ?? false) {
-        await saveUserData(user);
-        return true;
-      }
-
-      return false;
+      // If Firebase user exists but no local data, save it and proceed
+      await saveUserData(user);
+      return true;
     } catch (e) {
       print('Error checking login status: $e');
       return false;
