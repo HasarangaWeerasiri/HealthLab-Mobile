@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_utils.dart';
+import '../services/auth_service.dart';
 import 'content_preference_screen.dart';
 
 class UsernameScreen extends StatefulWidget {
-  const UsernameScreen({super.key});
+  final bool isGoogleSignUp;
+  
+  const UsernameScreen({super.key, this.isGoogleSignUp = false});
 
   @override
   State<UsernameScreen> createState() => _UsernameScreenState();
@@ -13,8 +16,52 @@ class UsernameScreen extends StatefulWidget {
 
 class _UsernameScreenState extends State<UsernameScreen> {
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _submitting = false;
+  String _passwordStrength = '';
+  Color _passwordStrengthColor = Colors.grey;
+
+  void _checkPasswordStrength(String password) {
+    if (password.isEmpty) {
+      setState(() {
+        _passwordStrength = '';
+        _passwordStrengthColor = Colors.grey;
+      });
+      return;
+    }
+
+    int score = 0;
+    String strength = '';
+    Color color = Colors.grey;
+
+    // Length check
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+
+    // Character variety checks
+    if (password.contains(RegExp(r'[a-z]'))) score++;
+    if (password.contains(RegExp(r'[A-Z]'))) score++;
+    if (password.contains(RegExp(r'[0-9]'))) score++;
+    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) score++;
+
+    // Determine strength
+    if (score < 3) {
+      strength = 'Weak';
+      color = Colors.red;
+    } else if (score < 5) {
+      strength = 'Medium';
+      color = Colors.orange;
+    } else {
+      strength = 'Strong';
+      color = Colors.green;
+    }
+
+    setState(() {
+      _passwordStrength = strength;
+      _passwordStrengthColor = color;
+    });
+  }
 
   Future<void> _saveUsername() async {
     if (!_formKey.currentState!.validate()) return;
@@ -28,6 +75,21 @@ class _UsernameScreenState extends State<UsernameScreen> {
         throw Exception('User not authenticated');
       }
 
+      // Check if user already has a username (prevent overwriting)
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (userDoc.exists && userDoc.data()?['username'] != null) {
+        setState(() => _submitting = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You already have a username. Please sign in instead.')),
+        );
+        return;
+      }
+
       // Check if username already exists
       final usernameQuery = await FirebaseFirestore.instance
           .collection('usernames')
@@ -38,7 +100,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
         setState(() => _submitting = false);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username already taken')),
+          const SnackBar(content: Text('This username is already taken. Please choose a different one.')),
         );
         return;
       }
@@ -60,6 +122,15 @@ class _UsernameScreenState extends State<UsernameScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // If this is a Google sign-up, update the password
+      if (widget.isGoogleSignUp && _passwordController.text.isNotEmpty) {
+        await user.updatePassword(_passwordController.text);
+      }
+
+      // Update local storage with username
+      final authService = AuthService();
+      await authService.updateUsername(username);
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         slideRoute(const ContentPreferenceScreen()),
@@ -76,6 +147,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
   @override
   void dispose() {
     _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -102,43 +174,105 @@ class _UsernameScreenState extends State<UsernameScreen> {
               const SizedBox(height: 32),
               Form(
                 key: _formKey,
-                child: TextFormField(
-                  controller: _usernameController,
-                  style: const TextStyle(color: Colors.white),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Username is required';
-                    }
-                    final username = value.trim();
-                    if (username.length < 3) {
-                      return 'Username must be at least 3 characters';
-                    }
-                    if (username.length > 20) {
-                      return 'Username must be less than 20 characters';
-                    }
-                    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
-                      return 'Only letters, numbers, and underscores allowed';
-                    }
-                    return null;
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Enter username',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    filled: true,
-                    fillColor: AppColors.primaryBackground,
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _usernameController,
+                      style: const TextStyle(color: Colors.white),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Username is required';
+                        }
+                        final username = value.trim();
+                        if (username.length < 3) {
+                          return 'Username must be at least 3 characters';
+                        }
+                        if (username.length > 20) {
+                          return 'Username must be less than 20 characters';
+                        }
+                        if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+                          return 'Only letters, numbers, and underscores allowed';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Enter username',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: AppColors.primaryBackground,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                        ),
+                      ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Colors.red, width: 1.5),
-                    ),
-                  ),
+                    if (widget.isGoogleSignUp) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        style: const TextStyle(color: Colors.white),
+                        onChanged: _checkPasswordStrength,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Password is required';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Create password',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                          filled: true,
+                          fillColor: AppColors.primaryBackground,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                          ),
+                        ),
+                      ),
+                      if (_passwordStrength.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(
+                              'Password strength: ',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              _passwordStrength,
+                              style: TextStyle(
+                                color: _passwordStrengthColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 32),

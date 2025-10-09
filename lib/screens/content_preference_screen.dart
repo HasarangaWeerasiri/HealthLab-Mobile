@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_utils.dart';
+import '../services/auth_service.dart';
 import 'ready_to_go_screen.dart';
 
 class ContentPreferenceScreen extends StatefulWidget {
@@ -48,6 +49,10 @@ class _ContentPreferenceScreenState extends State<ContentPreferenceScreen> {
         'preferences': selectedLabels,
         'preferencesUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      // Update local storage with preferences
+      final authService = AuthService();
+      await authService.updateUserPreferences(selectedLabels);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(slideRoute(const ReadyToGoScreen()));
