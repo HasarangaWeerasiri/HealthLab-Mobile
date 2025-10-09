@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'userprofile_screen.dart';
+import 'create_experiments_screen.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -139,8 +140,14 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _selectedIndex = index;
           });
           
-          // Navigate to user profile when user icon is tapped
-          if (index == 3) {
+          // Navigate actions
+          if (index == 2) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const CreateExperimentsScreen(),
+              ),
+            );
+          } else if (index == 3) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (context) => const UserProfileScreen(),

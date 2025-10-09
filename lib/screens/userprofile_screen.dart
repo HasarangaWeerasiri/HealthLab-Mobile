@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'sign_in_screen.dart';
 import 'homepage_screen.dart';
+import 'create_experiments_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -686,6 +687,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (context) => const HomepageScreen(),
+              ),
+            );
+          } else if (index == 2) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const CreateExperimentsScreen(),
               ),
             );
           } else if (index == 3) {
