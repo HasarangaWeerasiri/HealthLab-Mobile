@@ -7,6 +7,7 @@ import 'homepage_screen.dart';
 import 'my_experiments_screen.dart';
 import 'create_experiments_screen.dart';
 import 'userprofile_screen.dart';
+import 'share_experiment_screen.dart';
 
 class ExperimentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> experimentData;
@@ -28,17 +29,19 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
   int _joinedCount = 0;
   List<Map<String, dynamic>> _recommendedExperiments = [];
   String _creatorUsername = '';
+  late Map<String, dynamic> _data;
 
   @override
   void initState() {
     super.initState();
+    _data = Map<String, dynamic>.from(widget.experimentData);
     _loadExperimentData();
     _loadRecommendedExperiments();
     _loadCreatorUsername();
   }
 
   Future<void> _loadExperimentData() async {
-    final experimentId = widget.experimentData['id'] ?? '';
+    final experimentId = _data['id'] ?? '';
     if (experimentId.isEmpty) return;
 
     try {
@@ -52,6 +55,10 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
         final data = experimentDoc.data()!;
         setState(() {
           _joinedCount = data['joinedCount'] ?? 0;
+          _data = {
+            'id': experimentId,
+            ...data,
+          };
         });
       }
 
@@ -76,7 +83,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
 
   Future<void> _loadRecommendedExperiments() async {
     try {
-      final currentCategory = widget.experimentData['category'] as String?;
+      final currentCategory = _data['category'] as String?;
       if (currentCategory == null) return;
 
       final querySnapshot = await FirebaseFirestore.instance
@@ -91,7 +98,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                 'id': doc.id,
                 ...doc.data(),
               })
-          .where((exp) => exp['id'] != (widget.experimentData['id'] ?? ''))
+          .where((exp) => exp['id'] != (_data['id'] ?? ''))
           .toList();
 
       setState(() {
@@ -104,7 +111,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
 
   Future<void> _loadCreatorUsername() async {
     try {
-      final creatorId = widget.experimentData['creatorId'] as String?;
+      final creatorId = _data['creatorId'] as String?;
       if (creatorId == null || creatorId.isEmpty) return;
 
       final userDoc = await FirebaseFirestore.instance
@@ -143,7 +150,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
         return;
       }
 
-      final experimentId = widget.experimentData['id'] ?? '';
+      final experimentId = _data['id'] ?? '';
       if (experimentId.isEmpty) {
         _showErrorSnackBar('Invalid experiment');
         return;
@@ -160,8 +167,8 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
 
       batch.set(userExperimentRef, {
         'joinedAt': FieldValue.serverTimestamp(),
-        'experimentTitle': widget.experimentData['title'],
-        'experimentCategory': widget.experimentData['category'],
+        'experimentTitle': _data['title'],
+        'experimentCategory': _data['category'],
       });
 
       // Increment joined count in experiment document
@@ -198,7 +205,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      final experimentId = widget.experimentData['id'] ?? '';
+      final experimentId = _data['id'] ?? '';
       if (experimentId.isEmpty) return;
 
       final batch = FirebaseFirestore.instance.batch();
@@ -268,13 +275,13 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = (widget.experimentData['title'] as String?) ?? 'Untitled';
-    final description = (widget.experimentData['description'] as String?) ?? '';
-    final emojis = (widget.experimentData['emojis'] as List<dynamic>? ?? []).cast<String>();
+    final title = (_data['title'] as String?) ?? 'Untitled';
+    final description = (_data['description'] as String?) ?? '';
+    final emojis = (_data['emojis'] as List<dynamic>? ?? []).cast<String>();
     final emoji = emojis.isNotEmpty ? emojis.first : '🧪';
-    final creatorId = widget.experimentData['creatorId'] as String? ?? '';
-    final createdAt = widget.experimentData['createdAt'] as Timestamp?;
-    final durationDays = (widget.experimentData['durationDays'] as int?) ?? 0;
+    final creatorId = _data['creatorId'] as String? ?? '';
+    final createdAt = _data['createdAt'] as Timestamp?;
+    final durationDays = (_data['durationDays'] as int?) ?? 0;
 
     // Format creation date
     String createdDate = 'Unknown';
@@ -288,7 +295,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header with back button
+            // Header with back button and share
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -303,6 +310,30 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                       ),
                       child: const Icon(
                         Icons.arrow_back,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => ShareExperimentScreen(
+                            experimentData: _data,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.share,
                         color: Colors.white,
                         size: 24,
                       ),
