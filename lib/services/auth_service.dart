@@ -17,17 +17,15 @@ class AuthService {
   // Check if user is logged in (both Firebase and local storage)
   Future<bool> isLoggedIn() async {
     try {
-      // Check Firebase auth state
+      // Check Firebase auth state only
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         await _clearLocalData();
         return false;
       }
 
-      // Check if user is verified
-      if (!user.emailVerified) {
-        return false;
-      }
+      // Ensure local cache exists
+      await saveUserData(user);
 
       // Check local storage
       final prefs = await SharedPreferences.getInstance();
@@ -39,13 +37,9 @@ class AuthService {
         return true;
       }
 
-      // If Firebase user exists but no local data, save it
-      if (user.emailVerified) {
-        await saveUserData(user);
-        return true;
-      }
-
-      return false;
+      // If Firebase user exists but no local data, save it and proceed
+      await saveUserData(user);
+      return true;
     } catch (e) {
       print('Error checking login status: $e');
       return false;
@@ -72,6 +66,11 @@ class AuthService {
           final data = userDoc.data()!;
           await prefs.setString(_usernameKey, data['username'] ?? '');
           
+          // Save profile picture if available
+          if (data['profilePicture'] != null) {
+            await prefs.setString('profile_picture', data['profilePicture']);
+          }
+          
           // Save preferences if available
           if (data['preferences'] != null) {
             final preferences = List<String>.from(data['preferences']);
@@ -97,6 +96,7 @@ class AuthService {
         'username': prefs.getString(_usernameKey),
         'preferences': prefs.getStringList(_userPreferencesKey) ?? [],
         'lastLogin': prefs.getString(_lastLoginKey),
+        'profilePicture': prefs.getString('profile_picture'),
       };
     } catch (e) {
       print('Error getting stored user data: $e');
@@ -114,13 +114,119 @@ class AuthService {
     }
   }
 
-  // Update username in local storage
+  // Validate username format
+  String? validateUsername(String username) {
+    if (username.isEmpty) {
+      return 'Username cannot be empty';
+    }
+    
+    if (username.length < 3) {
+      return 'Username must be at least 3 characters long';
+    }
+    
+    if (username.length > 20) {
+      return 'Username cannot exceed 20 characters';
+    }
+    
+    // Allow only alphanumeric characters and underscores
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+      return 'Username can only contain letters, numbers, and underscores';
+    }
+    
+    // Cannot start with underscore or number
+    if (username.startsWith('_') || RegExp(r'^[0-9]').hasMatch(username)) {
+      return 'Username must start with a letter';
+    }
+    
+    return null; // Valid username
+  }
+
+  // Check if username is already taken by another user
+  Future<bool> isUsernameTaken(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentUserId = prefs.getString(_userIdKey);
+      
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username.toLowerCase())
+          .get();
+      
+      // If no documents found, username is available
+      if (querySnapshot.docs.isEmpty) {
+        return false;
+      }
+      
+      // If documents found, check if any belong to a different user
+      for (var doc in querySnapshot.docs) {
+        if (doc.id != currentUserId) {
+          return true; // Username is taken by another user
+        }
+      }
+      
+      return false; // Username belongs to current user or is available
+    } catch (e) {
+      print('Error checking username availability: $e');
+      throw e;
+    }
+  }
+
+  // Update username in both local storage and Firestore
   Future<void> updateUsername(String username) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_usernameKey, username);
+      final userId = prefs.getString(_userIdKey);
+      
+      if (userId != null) {
+        // Validate username format
+        final validationError = validateUsername(username);
+        if (validationError != null) {
+          throw Exception(validationError);
+        }
+        
+        // Check if username is already taken
+        final isTaken = await isUsernameTaken(username);
+        if (isTaken) {
+          throw Exception('Username is already taken. Please choose a different username.');
+        }
+        
+        // Store username in lowercase for consistency
+        final usernameToStore = username.toLowerCase();
+        
+        // Update in Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'username': usernameToStore});
+        
+        // Update in local storage
+        await prefs.setString(_usernameKey, usernameToStore);
+      }
     } catch (e) {
       print('Error updating username: $e');
+      throw e; // Re-throw to handle in UI
+    }
+  }
+
+  // Update profile picture URL in both local storage and Firestore
+  Future<void> updateProfilePicture(String profilePictureUrl) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString(_userIdKey);
+      
+      if (userId != null) {
+        // Update in Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'profilePicture': profilePictureUrl});
+        
+        // Update in local storage
+        await prefs.setString('profile_picture', profilePictureUrl);
+      }
+    } catch (e) {
+      print('Error updating profile picture: $e');
+      throw e; // Re-throw to handle in UI
     }
   }
 
@@ -134,6 +240,7 @@ class AuthService {
       await prefs.remove(_usernameKey);
       await prefs.remove(_userPreferencesKey);
       await prefs.remove(_lastLoginKey);
+      await prefs.remove('profile_picture');
     } catch (e) {
       print('Error clearing local data: $e');
     }

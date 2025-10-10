@@ -21,6 +21,8 @@ class _UsernameScreenState extends State<UsernameScreen> {
   bool _submitting = false;
   String _passwordStrength = '';
   Color _passwordStrengthColor = Colors.grey;
+  String? _usernameValidationError;
+  bool _isCheckingUsername = false;
 
   void _checkPasswordStrength(String password) {
     if (password.isEmpty) {
@@ -68,11 +70,23 @@ class _UsernameScreenState extends State<UsernameScreen> {
     
     setState(() => _submitting = true);
     try {
-      final username = _usernameController.text.trim().toLowerCase();
+      final username = _usernameController.text.trim();
       final user = FirebaseAuth.instance.currentUser;
+      final authService = AuthService();
       
       if (user == null) {
         throw Exception('User not authenticated');
+      }
+
+      // Validate username format
+      final validationError = authService.validateUsername(username);
+      if (validationError != null) {
+        setState(() => _submitting = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(validationError)),
+        );
+        return;
       }
 
       // Check if user already has a username (prevent overwriting)
@@ -90,13 +104,9 @@ class _UsernameScreenState extends State<UsernameScreen> {
         return;
       }
 
-      // Check if username already exists
-      final usernameQuery = await FirebaseFirestore.instance
-          .collection('usernames')
-          .doc(username)
-          .get();
-      
-      if (usernameQuery.exists) {
+      // Check if username already exists using AuthService
+      final isTaken = await authService.isUsernameTaken(username);
+      if (isTaken) {
         setState(() => _submitting = false);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,7 +138,6 @@ class _UsernameScreenState extends State<UsernameScreen> {
       }
 
       // Update local storage with username
-      final authService = AuthService();
       await authService.updateUsername(username);
 
       if (!mounted) return;
@@ -145,7 +154,64 @@ class _UsernameScreenState extends State<UsernameScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_onUsernameChanged);
+  }
+
+  void _onUsernameChanged() {
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() {
+        _usernameValidationError = null;
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    // Validate format first
+    final authService = AuthService();
+    final formatError = authService.validateUsername(username);
+    
+    if (formatError != null) {
+      setState(() {
+        _usernameValidationError = formatError;
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    // Check availability after a delay to avoid too many requests
+    setState(() {
+      _isCheckingUsername = true;
+      _usernameValidationError = null;
+    });
+
+    Future.delayed(const Duration(milliseconds: 500), () async {
+      if (_usernameController.text.trim() == username && mounted) {
+        try {
+          final isTaken = await authService.isUsernameTaken(username);
+          if (mounted) {
+            setState(() {
+              _isCheckingUsername = false;
+              _usernameValidationError = isTaken ? 'Username is already taken' : null;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isCheckingUsername = false;
+              _usernameValidationError = 'Error checking username availability';
+            });
+          }
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _usernameController.removeListener(_onUsernameChanged);
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -176,43 +242,83 @@ class _UsernameScreenState extends State<UsernameScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    TextFormField(
-                      controller: _usernameController,
-                      style: const TextStyle(color: Colors.white),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Username is required';
-                        }
-                        final username = value.trim();
-                        if (username.length < 3) {
-                          return 'Username must be at least 3 characters';
-                        }
-                        if (username.length > 20) {
-                          return 'Username must be less than 20 characters';
-                        }
-                        if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
-                          return 'Only letters, numbers, and underscores allowed';
-                        }
-                        return null;
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Enter username',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                        filled: true,
-                        fillColor: AppColors.primaryBackground,
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Colors.white.withOpacity(0.25)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextFormField(
+                          controller: _usernameController,
+                          style: const TextStyle(color: Colors.white),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Username is required';
+                            }
+                            if (_usernameValidationError != null) {
+                              return _usernameValidationError;
+                            }
+                            return null;
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Enter username',
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            filled: true,
+                            fillColor: AppColors.primaryBackground,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: _usernameValidationError != null 
+                                    ? Colors.red 
+                                    : Colors.white.withOpacity(0.25),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: _usernameValidationError != null 
+                                    ? Colors.red 
+                                    : AppColors.primaryGreen,
+                                width: 1.5,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                            ),
+                            suffixIcon: _isCheckingUsername
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : _usernameValidationError == null && 
+                                  _usernameController.text.trim().isNotEmpty
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
+                                      )
+                                    : null,
+                          ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Colors.red, width: 1.5),
-                        ),
-                      ),
+                        if (_usernameValidationError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _usernameValidationError!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     if (widget.isGoogleSignUp) ...[
                       const SizedBox(height: 16),
@@ -279,9 +385,19 @@ class _UsernameScreenState extends State<UsernameScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submitting ? null : _saveUsername,
+                  onPressed: (_submitting || 
+                             _usernameValidationError != null || 
+                             _isCheckingUsername || 
+                             _usernameController.text.trim().isEmpty) 
+                      ? null 
+                      : _saveUsername,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.darkGreen,
+                    backgroundColor: (_submitting || 
+                                     _usernameValidationError != null || 
+                                     _isCheckingUsername || 
+                                     _usernameController.text.trim().isEmpty)
+                        ? AppColors.darkGreen.withOpacity(0.5)
+                        : AppColors.darkGreen,
                     foregroundColor: AppColors.lightGreen,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

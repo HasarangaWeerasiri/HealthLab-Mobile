@@ -8,6 +8,9 @@ import 'email_verification_screen.dart';
 import 'username_screen.dart';
 import 'sign_in_screen.dart';
 import 'ready_to_go_screen.dart';
+import '../services/otp_service.dart';
+import '../services/sendgrid_email_service.dart';
+import '../utils/email_config.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -33,14 +36,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final password = _passwordController.text;
       await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
       final user = FirebaseAuth.instance.currentUser;
-      await user?.sendEmailVerification();
-      
       // Save login state to local storage (even though email not verified yet)
       if (user != null) {
         final authService = AuthService();
         await authService.saveUserData(user);
       }
-      
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         slideRoute(EmailVerificationScreen(email: email)),
