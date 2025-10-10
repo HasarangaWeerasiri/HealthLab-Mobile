@@ -3,6 +3,8 @@ import '../services/auth_service.dart';
 import 'sign_in_screen.dart';
 import 'homepage_screen.dart';
 import 'create_experiments_screen.dart';
+import 'my_experiments_screen.dart';
+import '../widgets/custom_navigation_bar.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -649,80 +651,44 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ),
       // Floating Navigation Bar
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF366A49),
-          borderRadius: BorderRadius.circular(35),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(0, 'assets/icons/home (2).png'),
-              _buildNavItem(1, 'assets/icons/chemistry.png'),
-              _buildNavItem(2, 'assets/icons/plus.png'),
-              _buildNavItem(3, 'assets/icons/user (3).png'),
-            ],
-          ),
-        ),
+      bottomNavigationBar: CustomNavigationBar(
+        selectedIndex: _selectedIndex,
+        onTap: _handleNavigation,
       ),
     );
   }
 
-  Widget _buildNavItem(int index, String iconPath) {
-    final isSelected = _selectedIndex == index;
-    
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedIndex = index;
-          });
-          
-          // Navigate based on selected tab
-          if (index == 0) {
-            // Home tab
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const HomepageScreen(),
-              ),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const CreateExperimentsScreen(),
-              ),
-            );
-          } else if (index == 3) {
-            // Profile tab - already here, do nothing
-            return;
-          }
-          // Add other navigation logic for chemistry and plus tabs as needed
-        },
-        child: Container(
-          height: 60,
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? const Color(0xFFEDFDDE) 
-                : const Color(0xFF1F412A),
-            shape: BoxShape.circle,
+  void _handleNavigation(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Home
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const HomepageScreen(),
           ),
-          child: Center(
-            child: Image.asset(
-              iconPath,
-              width: 28,
-              height: 28,
-              color: isSelected 
-                  ? Colors.black.withOpacity(0.8) // Dark for selected
-                  : Colors.white.withOpacity(0.6), // Light with 60% opacity for unselected
-            ),
+        );
+        break;
+      case 1: // My Experiments
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MyExperimentsScreen(),
           ),
-        ),
-      ),
-    );
+        );
+        break;
+      case 2: // Create Experiment
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const CreateExperimentsScreen(),
+          ),
+        );
+        break;
+      case 3: // Profile (current screen)
+        // Already on profile screen, do nothing
+        break;
+    }
   }
 
   Widget _buildInfoRow(String label, String value) {

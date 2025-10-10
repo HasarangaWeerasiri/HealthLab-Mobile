@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'homepage_screen.dart';
 import 'userprofile_screen.dart';
 import 'new_experiment1_screen.dart';
+import 'my_experiments_screen.dart';
 import '../services/draft_experiment_service.dart';
+import '../widgets/custom_navigation_bar.dart';
 
 class CreateExperimentsScreen extends StatefulWidget {
   const CreateExperimentsScreen({super.key});
@@ -160,70 +162,44 @@ class _CreateExperimentsScreenState extends State<CreateExperimentsScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF366A49),
-        borderRadius: BorderRadius.circular(35),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(0, 'assets/icons/home (2).png'),
-            _buildNavItem(1, 'assets/icons/chemistry.png'),
-            _buildNavItem(2, 'assets/icons/plus.png'),
-            _buildNavItem(3, 'assets/icons/user (3).png'),
-          ],
-        ),
+      bottomNavigationBar: CustomNavigationBar(
+        selectedIndex: _selectedIndex,
+        onTap: _handleNavigation,
       ),
     );
   }
 
-  Widget _buildNavItem(int index, String iconPath) {
-    final bool isSelected = _selectedIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedIndex = index;
-          });
-          if (index == 0) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomepageScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const UserProfileScreen()),
-            );
-          }
-        },
-        child: Container(
-          height: 60,
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFEDFDDE) : const Color(0xFF1F412A),
-            shape: BoxShape.circle,
+  void _handleNavigation(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Home
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const HomepageScreen(),
           ),
-          child: Center(
-            child: Image.asset(
-              iconPath,
-              width: 28,
-              height: 28,
-              color: isSelected
-                  ? Colors.black.withOpacity(0.8)
-                  : Colors.white.withOpacity(0.6),
-            ),
+        );
+        break;
+      case 1: // My Experiments
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MyExperimentsScreen(),
           ),
-        ),
-      ),
-    );
+        );
+        break;
+      case 2: // Create Experiment (current screen)
+        // Already on create experiments screen, do nothing
+        break;
+      case 3: // Profile
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const UserProfileScreen(),
+          ),
+        );
+        break;
+    }
   }
 }
 

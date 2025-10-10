@@ -37,6 +37,153 @@ class ExperimentService {
     return docRef.id;
   }
 
+  // Get experiments created by the current user
+  Future<List<Map<String, dynamic>>> getCreatedExperiments() async {
+    final currentUser = _auth.currentUser;
+    print('DEBUG: Current user: ${currentUser?.uid}');
+    
+    if (currentUser == null) {
+      print('DEBUG: User not authenticated');
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('DEBUG: Fetching created experiments for user: ${currentUser.uid}');
+      
+      // First get all experiments by creator, then filter and sort in memory
+      final querySnapshot = await _db
+          .collection('experiments')
+          .where('creatorId', isEqualTo: currentUser.uid)
+          .get();
+
+      print('DEBUG: Found ${querySnapshot.docs.length} total experiments for user');
+
+      final experiments = querySnapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            print('DEBUG: Experiment: ${data['title']}, published: ${data['published']}');
+            return data;
+          })
+          .where((experiment) => experiment['published'] == true)
+          .toList();
+
+      print('DEBUG: Found ${experiments.length} published experiments');
+
+      // Sort by createdAt in memory
+      experiments.sort((a, b) {
+        final aTime = a['createdAt'] as Timestamp?;
+        final bTime = b['createdAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime); // Descending order
+      });
+
+      return experiments;
+    } catch (e) {
+      print('Error fetching created experiments: $e');
+      return [];
+    }
+  }
+
+  // Get experiments joined by the current user
+  Future<List<Map<String, dynamic>>> getJoinedExperiments() async {
+    final currentUser = _auth.currentUser;
+    print('DEBUG: Getting joined experiments for user: ${currentUser?.uid}');
+    
+    if (currentUser == null) {
+      print('DEBUG: User not authenticated for joined experiments');
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final joinedExperimentsSnapshot = await _db
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('joinedExperiments')
+          .get();
+
+      print('DEBUG: Found ${joinedExperimentsSnapshot.docs.length} joined experiment references');
+
+      if (joinedExperimentsSnapshot.docs.isEmpty) {
+        print('DEBUG: No joined experiments found');
+        return [];
+      }
+
+      // Get the actual experiment data for each joined experiment
+      final List<Map<String, dynamic>> joinedExperiments = [];
+      
+      for (final doc in joinedExperimentsSnapshot.docs) {
+        final experimentId = doc.id;
+        final joinedData = doc.data();
+        print('DEBUG: Processing joined experiment: $experimentId');
+        
+        try {
+          final experimentDoc = await _db
+              .collection('experiments')
+              .doc(experimentId)
+              .get();
+          
+          if (experimentDoc.exists) {
+            final experimentData = experimentDoc.data()!;
+            experimentData['id'] = experimentId;
+            experimentData['joinedAt'] = joinedData['joinedAt'];
+            print('DEBUG: Added joined experiment: ${experimentData['title']}');
+            joinedExperiments.add(experimentData);
+          } else {
+            print('DEBUG: Experiment $experimentId not found in experiments collection');
+          }
+        } catch (e) {
+          print('Error fetching experiment $experimentId: $e');
+          // Continue with other experiments
+        }
+      }
+
+      print('DEBUG: Returning ${joinedExperiments.length} joined experiments');
+      return joinedExperiments;
+    } catch (e) {
+      print('Error fetching joined experiments: $e');
+      return [];
+    }
+  }
+
+  // Get experiment by ID
+  Future<Map<String, dynamic>?> getExperimentById(String experimentId) async {
+    try {
+      final doc = await _db.collection('experiments').doc(experimentId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        data['id'] = doc.id;
+        return data;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching experiment: $e');
+      return null;
+    }
+  }
+
+  // Check if user has joined an experiment
+  Future<bool> hasUserJoinedExperiment(String experimentId) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return false;
+
+    try {
+      final doc = await _db
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('joinedExperiments')
+          .doc(experimentId)
+          .get();
+      
+      return doc.exists;
+    } catch (e) {
+      print('Error checking if user joined experiment: $e');
+      return false;
+    }
+  }
+
   Map<String, dynamic> _normalizeField(Map<String, dynamic> field) {
     final type = field['type'];
     switch (type) {

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
 import 'userprofile_screen.dart';
 import 'create_experiments_screen.dart';
+import 'experiment_details_screen.dart';
+import 'my_experiments_screen.dart';
+import '../widgets/custom_navigation_bar.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -15,6 +19,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String? _selectedCategory;
   late final List<String> _categories;
+  final Random _random = Random();
 
   @override
   void initState() {
@@ -180,19 +185,33 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   if (query.isNotEmpty && !(title.contains(query) || desc.contains(query))) return false;
                   return true;
                 }).toList();
+                
+                // Shuffle the filtered experiments for variety
+                filtered.shuffle(_random);
 
                 if (filtered.isEmpty) {
                   return const Center(child: Text('No matching experiments', style: TextStyle(color: Colors.white)));
                 }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final data = filtered[index].data();
-                    return _ExperimentCard(data: data);
-                  },
+                return RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  color: const Color(0xFFCDEDC6),
+                  backgroundColor: const Color(0xFF00432D),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final doc = filtered[index];
+                      final data = doc.data();
+                      return _ExperimentCard(
+                        data: {
+                          'id': doc.id,
+                          ...data,
+                        },
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -200,75 +219,54 @@ class _HomepageScreenState extends State<HomepageScreen> {
         ],
       ),
       // Floating Navigation Bar
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF366A49),
-          borderRadius: BorderRadius.circular(35),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(0, 'assets/icons/home (2).png'),
-              _buildNavItem(1, 'assets/icons/chemistry.png'),
-              _buildNavItem(2, 'assets/icons/plus.png'),
-              _buildNavItem(3, 'assets/icons/user (3).png'),
-            ],
-          ),
-        ),
+      bottomNavigationBar: CustomNavigationBar(
+        selectedIndex: _selectedIndex,
+        onTap: _handleNavigation,
       ),
     );
   }
 
-  Widget _buildNavItem(int index, String iconPath) {
-    final isSelected = _selectedIndex == index;
+  void _handleNavigation(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Home (current screen)
+        // Already on homepage, do nothing
+        break;
+      case 1: // My Experiments
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const MyExperimentsScreen(),
+          ),
+        );
+        break;
+      case 2: // Create Experiment
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const CreateExperimentsScreen(),
+          ),
+        );
+        break;
+      case 3: // Profile
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const UserProfileScreen(),
+          ),
+        );
+        break;
+    }
+  }
+
+  Future<void> _onRefresh() async {
+    // Add a small delay to show the refresh indicator
+    await Future.delayed(const Duration(milliseconds: 1000));
     
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedIndex = index;
-          });
-          
-          // Navigate actions
-          if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const CreateExperimentsScreen(),
-              ),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => const UserProfileScreen(),
-              ),
-            );
-          }
-        },
-        child: Container(
-          height: 60,
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? const Color(0xFFEDFDDE) 
-                : const Color(0xFF1F412A),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Image.asset(
-              iconPath,
-              width: 28,
-              height: 28,
-              color: isSelected 
-                  ? Colors.black.withOpacity(0.8) // Dark for selected
-                  : Colors.white.withOpacity(0.6), // Light with 60% opacity for unselected
-            ),
-          ),
-        ),
-      ),
-    );
+    // Trigger a rebuild to shuffle the experiments
+    setState(() {
+      // The shuffle will happen in the filtering logic
+    });
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _experimentsStream() {
@@ -290,119 +288,45 @@ class _ExperimentCard extends StatelessWidget {
     final emojis = (data['emojis'] as List<dynamic>? ?? []).cast<String>();
     final emoji = emojis.isNotEmpty ? emojis.first : '🧪';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2723),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 52)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(
-                  desc,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white.withOpacity(0.85)),
-                ),
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: OutlinedButton(
-                    onPressed: () => _showDetails(context, data),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFCDEDC6)),
-                      foregroundColor: const Color(0xFFCDEDC6),
-                    ),
-                    child: const Text('View Details'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDetails(BuildContext context, Map<String, dynamic> data) {
-    final title = (data['title'] as String?) ?? 'Untitled';
-    final desc = (data['description'] as String?) ?? '';
-    final emojis = (data['emojis'] as List<dynamic>? ?? []).cast<String>();
-    final durationDays = (data['durationDays'] as int?) ?? 0;
-    final fields = (data['fields'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: const Color(0xFFEDFDDE),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
+    return GestureDetector(
+      onTap: () => _navigateToExperimentDetails(context, data),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2723),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 52)),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      if (emojis.isNotEmpty)
-                        Text(emojis.join(' '), style: const TextStyle(fontSize: 24)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(title,
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1E4029))),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (durationDays > 0)
-                            Text('Duration: $durationDays days', style: const TextStyle(color: Color(0xFF1E4029))),
-                          const SizedBox(height: 8),
-                          Text(desc, style: const TextStyle(color: Color(0xFF1E4029))),
-                          const SizedBox(height: 14),
-                          const Text('Fields', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1E4029))),
-                          const SizedBox(height: 6),
-                          ...fields.map((f) {
-                            final type = (f['type'] as String?) ?? 'field';
-                            final name = (f['title'] as String?) ?? '';
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Text('• $name ($type)', style: const TextStyle(color: Color(0xFF1E4029))),
-                            );
-                          }).toList(),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Close'),
-                    ),
+                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 6),
+                  Text(
+                    desc,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.white.withOpacity(0.85)),
                   ),
                 ],
               ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToExperimentDetails(BuildContext context, Map<String, dynamic> data) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ExperimentDetailsScreen(experimentData: data),
+      ),
     );
   }
 }
