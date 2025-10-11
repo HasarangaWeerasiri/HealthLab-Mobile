@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'fingerprint_service.dart';
 
 class AuthService {
   static const String _isLoggedInKey = 'is_logged_in';
@@ -9,6 +10,7 @@ class AuthService {
   static const String _usernameKey = 'username';
   static const String _userPreferencesKey = 'user_preferences';
   static const String _lastLoginKey = 'last_login';
+  static const String _fingerprintEnabledKey = 'fingerprint_enabled';
 
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -97,6 +99,7 @@ class AuthService {
         'preferences': prefs.getStringList(_userPreferencesKey) ?? [],
         'lastLogin': prefs.getString(_lastLoginKey),
         'profilePicture': prefs.getString('profile_picture'),
+        'fingerprintEnabled': prefs.getBool(_fingerprintEnabledKey) ?? false,
       };
     } catch (e) {
       print('Error getting stored user data: $e');
@@ -241,6 +244,7 @@ class AuthService {
       await prefs.remove(_userPreferencesKey);
       await prefs.remove(_lastLoginKey);
       await prefs.remove('profile_picture');
+      await prefs.remove(_fingerprintEnabledKey);
     } catch (e) {
       print('Error clearing local data: $e');
     }
@@ -286,6 +290,97 @@ class AuthService {
     } catch (e) {
       print('Error getting initial route: $e');
       return '/onboarding';
+    }
+  }
+
+  // Fingerprint Authentication Methods
+
+  /// Check if fingerprint authentication is available on the device
+  Future<bool> isFingerprintAvailable() async {
+    try {
+      final fingerprintService = FingerprintService();
+      return await fingerprintService.isBiometricAvailable();
+    } catch (e) {
+      print('Error checking fingerprint availability: $e');
+      return false;
+    }
+  }
+
+  /// Get fingerprint authentication status
+  Future<bool> isFingerprintEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_fingerprintEnabledKey) ?? false;
+    } catch (e) {
+      print('Error checking fingerprint enabled status: $e');
+      return false;
+    }
+  }
+
+  /// Enable fingerprint authentication
+  Future<bool> enableFingerprint() async {
+    try {
+      final fingerprintService = FingerprintService();
+      
+      // Check if biometric is available
+      final isAvailable = await fingerprintService.isBiometricAvailable();
+      if (!isAvailable) {
+        throw Exception('Fingerprint authentication is not available on this device');
+      }
+
+      // Test authentication to ensure it works
+      final didAuthenticate = await fingerprintService.authenticateWithBiometric(
+        reason: 'Enable fingerprint authentication for HealthLab',
+        cancelButton: 'Cancel',
+      );
+
+      if (didAuthenticate) {
+        // Save the setting
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_fingerprintEnabledKey, true);
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      print('Error enabling fingerprint: $e');
+      throw e;
+    }
+  }
+
+  /// Disable fingerprint authentication
+  Future<void> disableFingerprint() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_fingerprintEnabledKey, false);
+    } catch (e) {
+      print('Error disabling fingerprint: $e');
+      throw e;
+    }
+  }
+
+  /// Authenticate using fingerprint
+  Future<bool> authenticateWithFingerprint() async {
+    try {
+      final fingerprintService = FingerprintService();
+      return await fingerprintService.authenticateWithBiometric(
+        reason: 'Authenticate to access HealthLab',
+        cancelButton: 'Cancel',
+      );
+    } catch (e) {
+      print('Error authenticating with fingerprint: $e');
+      throw e;
+    }
+  }
+
+  /// Get biometric description for UI display
+  Future<String> getBiometricDescription() async {
+    try {
+      final fingerprintService = FingerprintService();
+      return await fingerprintService.getBiometricDescription();
+    } catch (e) {
+      print('Error getting biometric description: $e');
+      return 'Biometric authentication not available';
     }
   }
 }

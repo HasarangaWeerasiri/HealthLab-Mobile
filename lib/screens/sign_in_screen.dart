@@ -20,6 +20,8 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _submitting = false;
+  bool _fingerprintAvailable = false;
+  bool _fingerprintEnabled = false;
 
   Future<void> _signInWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
@@ -108,6 +110,90 @@ class _SignInScreenState extends State<SignInScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('An unexpected error occurred')),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFingerprintAvailability();
+  }
+
+  Future<void> _checkFingerprintAvailability() async {
+    try {
+      final authService = AuthService();
+      final fingerprintAvailable = await authService.isFingerprintAvailable();
+      final fingerprintEnabled = await authService.isFingerprintEnabled();
+      
+      if (mounted) {
+        setState(() {
+          _fingerprintAvailable = fingerprintAvailable;
+          _fingerprintEnabled = fingerprintEnabled;
+        });
+      }
+    } catch (e) {
+      print('Error checking fingerprint availability: $e');
+    }
+  }
+
+  Future<void> _signInWithFingerprint() async {
+    if (_submitting) return;
+    
+    setState(() => _submitting = true);
+    
+    try {
+      final authService = AuthService();
+      final success = await authService.authenticateWithFingerprint();
+      
+      if (success) {
+        // Check if user is already logged in (for fingerprint auth, we assume they have valid credentials)
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await authService.saveUserData(user);
+          
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const ReadyToGoScreen()),
+          );
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please sign in with email/password first to enable fingerprint authentication'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fingerprint authentication was cancelled'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      String errorMessage = 'Fingerprint authentication failed';
+      
+      if (e.toString().contains('not available')) {
+        errorMessage = 'Fingerprint authentication is not available';
+      } else if (e.toString().contains('not enrolled')) {
+        errorMessage = 'Please set up fingerprint authentication in your device settings';
+      } else if (e.toString().contains('locked')) {
+        errorMessage = 'Fingerprint authentication is locked. Please use your device passcode';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -241,6 +327,34 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              
+              // Fingerprint Authentication Button
+              if (_fingerprintAvailable && _fingerprintEnabled) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _submitting ? null : _signInWithFingerprint,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.darkGreen.withOpacity(0.8),
+                      foregroundColor: AppColors.lightGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    icon: _submitting 
+                        ? const SizedBox(
+                            height: 20, 
+                            width: 20, 
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                          )
+                        : const Icon(Icons.fingerprint, size: 24),
+                    label: _submitting 
+                        ? const Text('Authenticating...', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18))
+                        : const Text('Sign In with Fingerprint', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              
               Center(child: Text('Or sign in with', style: TextStyle(color: Colors.white.withOpacity(0.7)))),
               const SizedBox(height: 12),
               Row(

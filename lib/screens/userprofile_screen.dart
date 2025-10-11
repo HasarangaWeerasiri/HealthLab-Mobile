@@ -21,6 +21,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final TextEditingController _usernameController = TextEditingController();
   String? _usernameValidationError;
   bool _isCheckingUsername = false;
+  bool _fingerprintEnabled = false;
+  bool _fingerprintAvailable = false;
+  bool _isTogglingFingerprint = false;
 
   @override
   void initState() {
@@ -92,9 +95,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     try {
       final authService = AuthService();
       final userData = await authService.getStoredUserData();
+      
+      // Check fingerprint availability and status
+      final fingerprintAvailable = await authService.isFingerprintAvailable();
+      final fingerprintEnabled = await authService.isFingerprintEnabled();
+      
       setState(() {
         _userData = userData;
         _usernameController.text = userData['username'] ?? '';
+        _fingerprintAvailable = fingerprintAvailable;
+        _fingerprintEnabled = fingerprintEnabled;
         _loading = false;
       });
     } catch (e) {
@@ -294,6 +304,87 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error removing profile picture: ${e.toString()}')),
         );
+      }
+    }
+  }
+
+  Future<void> _toggleFingerprint() async {
+    if (_isTogglingFingerprint) return;
+    
+    setState(() {
+      _isTogglingFingerprint = true;
+    });
+
+    try {
+      final authService = AuthService();
+      
+      if (_fingerprintEnabled) {
+        // Disable fingerprint
+        await authService.disableFingerprint();
+        setState(() {
+          _fingerprintEnabled = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fingerprint authentication disabled'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        // Enable fingerprint
+        final success = await authService.enableFingerprint();
+        if (success) {
+          setState(() {
+            _fingerprintEnabled = true;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Fingerprint authentication enabled successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Fingerprint authentication was cancelled'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      String errorMessage = 'Error updating fingerprint settings';
+      
+      if (e.toString().contains('not available')) {
+        errorMessage = 'Fingerprint authentication is not available on this device';
+      } else if (e.toString().contains('not enrolled')) {
+        errorMessage = 'Please set up fingerprint authentication in your device settings first';
+      } else if (e.toString().contains('locked')) {
+        errorMessage = 'Fingerprint authentication is locked. Please use your device passcode';
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTogglingFingerprint = false;
+        });
       }
     }
   }
@@ -624,6 +715,131 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  
+                  // Security Settings Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00432D),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Security Settings',
+                          style: TextStyle(
+                            color: Color(0xFFE6FDD8),
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Fingerprint Toggle
+                        if (_fingerprintAvailable) ...[
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.fingerprint,
+                                color: Color(0xFFE6FDD8),
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Fingerprint Authentication',
+                                      style: TextStyle(
+                                        color: Color(0xFFE6FDD8),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _fingerprintEnabled 
+                                          ? 'Use your fingerprint to sign in quickly'
+                                          : 'Enable fingerprint authentication for faster sign-in',
+                                      style: TextStyle(
+                                        color: const Color(0xFFE6FDD8).withOpacity(0.7),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              if (_isTogglingFingerprint)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFE6FDD8),
+                                  ),
+                                )
+                              else
+                                Switch(
+                                  value: _fingerprintEnabled,
+                                  onChanged: _fingerprintAvailable ? (_) => _toggleFingerprint() : null,
+                                  activeColor: const Color(0xFFE6FDD8),
+                                  activeTrackColor: const Color(0xFFE6FDD8).withOpacity(0.3),
+                                  inactiveThumbColor: const Color(0xFFE6FDD8).withOpacity(0.5),
+                                  inactiveTrackColor: const Color(0xFFE6FDD8).withOpacity(0.1),
+                                ),
+                            ],
+                          ),
+                        ] else ...[
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.fingerprint,
+                                color: const Color(0xFFE6FDD8).withOpacity(0.5),
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Fingerprint Authentication',
+                                      style: TextStyle(
+                                        color: const Color(0xFFE6FDD8).withOpacity(0.5),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Fingerprint authentication is not available on this device',
+                                      style: TextStyle(
+                                        color: const Color(0xFFE6FDD8).withOpacity(0.5),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Switch(
+                                value: false,
+                                onChanged: null,
+                                activeColor: const Color(0xFFE6FDD8),
+                                activeTrackColor: const Color(0xFFE6FDD8).withOpacity(0.3),
+                                inactiveThumbColor: const Color(0xFFE6FDD8).withOpacity(0.3),
+                                inactiveTrackColor: const Color(0xFFE6FDD8).withOpacity(0.1),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   
                   // Sign Out Button
                   SizedBox(
