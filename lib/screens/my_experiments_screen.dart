@@ -4,7 +4,8 @@ import '../services/experiment_service.dart';
 import 'homepage_screen.dart';
 import 'create_experiments_screen.dart';
 import 'userprofile_screen.dart';
-import 'experiment_screen.dart';
+import 'joined_experiment_screen.dart';
+import 'experiment_details_screen.dart';
 
 class MyExperimentsScreen extends StatefulWidget {
   const MyExperimentsScreen({super.key});
@@ -205,7 +206,7 @@ class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
                                       ),
                                     )
                                   : SizedBox(
-                                      height: 280,
+                                      height: 360,
                                       child: ListView.builder(
                                         scrollDirection: Axis.horizontal,
                                         itemCount: _joinedExperiments.length,
@@ -249,7 +250,7 @@ class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
                                       ),
                                     )
                                   : SizedBox(
-                                      height: 280,
+                                      height: 360,
                                       child: ListView.builder(
                                         scrollDirection: Axis.horizontal,
                                         itemCount: _createdExperiments.length,
@@ -281,132 +282,133 @@ class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
     required Map<String, dynamic> experiment,
     required bool isJoined,
   }) {
-    // Get the first emoji from the emojis list, or use a default
-    final emojis = experiment['emojis'] as List<dynamic>? ?? [];
-    final icon = emojis.isNotEmpty ? emojis.first.toString() : '🧪';
-    
-    return Container(
-      width: 300,
-      margin: const EdgeInsets.only(right: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A4D3B),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Experiment Icon
-            Row(
-              children: [
-                Text(
-                  icon,
-                  style: const TextStyle(fontSize: 30),
+    final emojisRaw = experiment['emojis'] as List<dynamic>? ?? [];
+    final emojis = emojisRaw
+        .map((e) => e?.toString() ?? '')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final icon = emojis.isNotEmpty ? emojis.first : '🧪';
+    final emojiDisplay = emojis.isNotEmpty
+        ? (emojis.length == 1 ? emojis.first : emojis.take(4).join(' '))
+        : icon;
+
+    void navigate() {
+      if (isJoined) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => JoinedExperimentScreen(
+              title: experiment['title'] ?? 'Untitled Experiment',
+              description: experiment['description'] ?? 'No description available',
+              experimentId: (experiment['id'] ?? '').toString(),
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ExperimentDetailsScreen(
+              experimentData: experiment,
+            ),
+          ),
+        );
+      }
+    }
+
+    return GestureDetector(
+      onTap: navigate,
+      child: Container(
+        width: 360,
+        margin: const EdgeInsets.only(right: 15),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00432D),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  experiment['title'] ?? 'Untitled Experiment',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFEDFDDE),
+                    fontSize: 39,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
                 ),
-                const Spacer(),
-                // Show joined count if available
-                if (experiment['joinedCount'] != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    flex: 4,
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final side = constraints.biggest.shortestSide;
+                          final baselineSize = side; // large baseline, scaled by FittedBox
+                          return Center(
+                            child: FittedBox(
+                              fit: BoxFit.contain,
+                              child: Text(
+                                emojiDisplay,
+                                maxLines: 1,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: baselineSize),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Flexible(
+                    flex: 6,
+                    child: Text(
+                      experiment['description'] ?? 'No description available',
+                      maxLines: 6,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFEDFDDE),
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (experiment['category'] != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFA0C49D),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: Colors.white.withOpacity(0.28)),
                     ),
                     child: Text(
-                      '${experiment['joinedCount']} joined',
+                      experiment['category'],
                       style: const TextStyle(
-                        color: Color(0xFF1A4D3B),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFEDFDDE),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            
-            // Experiment Title
-            Text(
-              experiment['title'] ?? 'Untitled Experiment',
-              style: const TextStyle(
-                color: Color(0xFFE0E0E0),
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            
-            // Experiment Category
-            if (experiment['category'] != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFA0C49D).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  experiment['category'],
-                  style: const TextStyle(
-                    color: Color(0xFFA0C49D),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 10),
-            
-            // Experiment Description
-            Expanded(
-              child: Text(
-                experiment['description'] ?? 'No description available',
-                style: const TextStyle(
-                  color: Color(0xFFE0E0E0),
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-                maxLines: 6,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 15),
-            
-            // View Details Button
-            Align(
-              alignment: Alignment.bottomRight,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => ExperimentScreen(
-                        experimentTitle: experiment['title'] ?? 'Untitled Experiment',
-                        experimentDescription: experiment['description'] ?? 'No description available',
-                        isJoined: isJoined,
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA0C49D),
-                  foregroundColor: const Color(0xFF1A4D3B),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: const Text(
-                  'View Details',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

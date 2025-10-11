@@ -4,8 +4,10 @@ import 'dart:math';
 import 'userprofile_screen.dart';
 import 'create_experiments_screen.dart';
 import 'experiment_details_screen.dart';
+import '../widgets/experiment_details_modal.dart';
 import 'my_experiments_screen.dart';
 import '../widgets/custom_navigation_bar.dart';
+import 'qr_scanner_screen.dart';
 
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
@@ -77,17 +79,26 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Image.asset(
-                            'assets/icons/qr-code.png',
-                            width: 24,
-                            height: 24,
-                            color: const Color(0xFFE6FDD8),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const QrScannerScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Image.asset(
+                              'assets/icons/qr-code.png',
+                              width: 24,
+                              height: 24,
+                              color: const Color(0xFFE6FDD8),
+                            ),
                           ),
                         ),
                       ],
@@ -285,37 +296,110 @@ class _ExperimentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = (data['title'] as String?) ?? 'Untitled';
     final desc = (data['description'] as String?) ?? '';
-    final emojis = (data['emojis'] as List<dynamic>? ?? []).cast<String>();
+    final emojisRaw = (data['emojis'] as List<dynamic>? ?? []);
+    final emojis = emojisRaw
+        .whereType<String>()
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
     final emoji = emojis.isNotEmpty ? emojis.first : '🧪';
+    // Build a display string that safely fits multiple emojis in the square area
+    final emojiDisplay = emojis.isNotEmpty
+        ? (emojis.length == 1 ? emojis.first : emojis.take(4).join(' '))
+        : emoji;
 
-    return GestureDetector(
+  return GestureDetector(
       onTap: () => _navigateToExperimentDetails(context, data),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF2A2723),
-          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF00432D),
+          borderRadius: BorderRadius.circular(24),
         ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 52)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  Text(
-                    desc,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white.withOpacity(0.85)),
-                  ),
-                ],
+            // Title across the top (left aligned)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFEDFDDE),
+                  fontSize: 39,
+                  fontWeight: FontWeight.w800,
+                  height: 1.2,
+                ),
               ),
             ),
+            const SizedBox(height: 14),
+            // Two columns: left emoji (square), right description
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  flex: 4,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final side = constraints.biggest.shortestSide;
+                        // Give a large baseline font size and let FittedBox scale it to fit
+                        final baselineSize = side; // 1.0x of the square side
+                        return Center(
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            child: Text(
+                              emojiDisplay,
+                              maxLines: 1,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: baselineSize),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Flexible(
+                  flex: 6,
+                  child: Text(
+                    desc,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFEDFDDE),
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if ((data['category'] as String?) != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.white.withOpacity(0.28)),
+                  ),
+                  child: Text(
+                    data['category'],
+                    style: const TextStyle(
+                      color: Color(0xFFEDFDDE),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -323,10 +407,6 @@ class _ExperimentCard extends StatelessWidget {
   }
 
   void _navigateToExperimentDetails(BuildContext context, Map<String, dynamic> data) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ExperimentDetailsScreen(experimentData: data),
-      ),
-    );
+    showExperimentDetailsModal(context, data);
   }
 }
