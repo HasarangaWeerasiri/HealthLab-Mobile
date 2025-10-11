@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import '../utils/app_utils.dart';
-import 'homepage_screen.dart';
+import '../widgets/global_navigation_wrapper.dart';
 
 class ReadyToGoScreen extends StatelessWidget {
   const ReadyToGoScreen({super.key});
@@ -43,7 +43,7 @@ class ReadyToGoScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const HomepageScreen()),
+                      MaterialPageRoute(builder: (context) => const GlobalNavigationWrapper(initialIndex: 0)),
                     );
                   },
                   icon: const Icon(Icons.arrow_right_alt_rounded, size: 24),

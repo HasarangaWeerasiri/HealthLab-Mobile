@@ -6,7 +6,6 @@ import 'homepage_screen.dart';
 import 'userprofile_screen.dart';
 import 'my_experiments_screen.dart';
 import 'create_experiments_screen.dart';
-import '../widgets/custom_navigation_bar.dart';
 
 class NewExperiment1Screen extends StatefulWidget {
   const NewExperiment1Screen({super.key});
@@ -16,8 +15,6 @@ class NewExperiment1Screen extends StatefulWidget {
 }
 
 class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
-  int _selectedIndex = 2; // plus highlighted
-
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _descCtrl = TextEditingController();
@@ -212,10 +209,6 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
           ),
         ),
       ),
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
   }
 
@@ -225,43 +218,6 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
     // Load a provided draft once
     if (_draftId == null && (_titleCtrl.text.isEmpty && _fields.isEmpty)) {
       loadDraftIfProvided(context);
-    }
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
-          ),
-        );
-        break;
-      case 1: // My Experiments
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyExperimentsScreen(),
-          ),
-        );
-        break;
-      case 2: // Create Experiment
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const CreateExperimentsScreen(),
-          ),
-        );
-        break;
-      case 3: // Profile
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const UserProfileScreen(),
-          ),
-        );
-        break;
     }
   }
 

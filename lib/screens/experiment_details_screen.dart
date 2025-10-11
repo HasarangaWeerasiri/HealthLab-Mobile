@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_navigation_bar.dart';
-import 'homepage_screen.dart';
+import '../widgets/global_navigation_wrapper.dart';
 import 'my_experiments_screen.dart';
 import 'create_experiments_screen.dart';
 import 'userprofile_screen.dart';
@@ -497,7 +497,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
       case 0: // Home
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
+            builder: (context) => const GlobalNavigationWrapper(initialIndex: 0),
           ),
         );
         break;

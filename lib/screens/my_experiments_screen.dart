@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/custom_navigation_bar.dart';
 import '../services/experiment_service.dart';
 import 'homepage_screen.dart';
 import 'create_experiments_screen.dart';
@@ -15,7 +14,6 @@ class MyExperimentsScreen extends StatefulWidget {
 }
 
 class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
-  int _selectedIndex = 1; // Chemistry icon selected
   final TextEditingController _searchController = TextEditingController();
   final ExperimentService _experimentService = ExperimentService();
   
@@ -270,11 +268,6 @@ class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
           ],
         ),
       ),
-      // Floating Navigation Bar
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
   }
 
@@ -412,38 +405,5 @@ class _MyExperimentsScreenState extends State<MyExperimentsScreen> {
         ),
       ),
     );
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
-          ),
-        );
-        break;
-      case 1: // My Experiments (current screen)
-        // Already on this screen, do nothing
-        break;
-      case 2: // Create Experiment
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const CreateExperimentsScreen(),
-          ),
-        );
-        break;
-      case 3: // Profile
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const UserProfileScreen(),
-          ),
-        );
-        break;
-    }
   }
 }

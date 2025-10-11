@@ -7,7 +7,6 @@ import 'my_experiments_screen.dart';
 import 'pin_setup_screen.dart';
 import 'pin_verification_screen.dart';
 import 'pin_screen.dart';
-import '../widgets/custom_navigation_bar.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -19,7 +18,6 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   Map<String, dynamic> _userData = {};
   bool _loading = true;
-  int _selectedIndex = 3; // Profile tab is selected
   bool _isEditingUsername = false;
   final TextEditingController _usernameController = TextEditingController();
   String? _usernameValidationError;
@@ -1103,45 +1101,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ],
               ),
             ),
-      // Floating Navigation Bar
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
-          ),
-        );
-        break;
-      case 1: // My Experiments
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyExperimentsScreen(),
-          ),
-        );
-        break;
-      case 2: // Create Experiment
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const CreateExperimentsScreen(),
-          ),
-        );
-        break;
-      case 3: // Profile (current screen)
-        // Already on profile screen, do nothing
-        break;
-    }
   }
 
   Widget _buildInfoRow(String label, String value) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'onboarding_screen.dart';
 import 'username_screen.dart';
-import 'homepage_screen.dart';
+import '../widgets/global_navigation_wrapper.dart';
 import 'sign_in_screen.dart';
 import 'pin_verification_screen.dart';
 import '../services/auth_service.dart';
@@ -57,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen> {
       Widget destination;
       switch (initialRoute) {
         case '/homepage':
-          destination = const HomepageScreen();
+          destination = const GlobalNavigationWrapper(initialIndex: 0);
           break;
         case '/username':
           destination = const UsernameScreen();
@@ -88,7 +88,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (success) {
           // Authentication successful, proceed to homepage
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomepageScreen()),
+            MaterialPageRoute(builder: (_) => const GlobalNavigationWrapper(initialIndex: 0)),
           );
         } else {
           // Authentication failed or cancelled, show error and go to sign-in
