@@ -4,6 +4,9 @@ import 'sign_in_screen.dart';
 import 'homepage_screen.dart';
 import 'create_experiments_screen.dart';
 import 'my_experiments_screen.dart';
+import 'pin_setup_screen.dart';
+import 'pin_verification_screen.dart';
+import 'pin_screen.dart';
 import '../widgets/custom_navigation_bar.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -24,6 +27,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _fingerprintEnabled = false;
   bool _fingerprintAvailable = false;
   bool _isTogglingFingerprint = false;
+  bool _pinSet = false;
 
   @override
   void initState() {
@@ -99,12 +103,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Check fingerprint availability and status
       final fingerprintAvailable = await authService.isFingerprintAvailable();
       final fingerprintEnabled = await authService.isFingerprintEnabled();
+      final pinSet = await authService.isPinSet();
       
       setState(() {
         _userData = userData;
         _usernameController.text = userData['username'] ?? '';
         _fingerprintAvailable = fingerprintAvailable;
         _fingerprintEnabled = fingerprintEnabled;
+        _pinSet = pinSet;
         _loading = false;
       });
     } catch (e) {
@@ -334,27 +340,88 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           );
         }
       } else {
-        // Enable fingerprint
-        final success = await authService.enableFingerprint();
-        if (success) {
-          setState(() {
-            _fingerprintEnabled = true;
-          });
-          
+        // Check if PIN is set up first
+        final isPinSet = await authService.isPinSet();
+        if (!isPinSet) {
+          // PIN not set up, navigate to PIN setup screen
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Fingerprint authentication enabled successfully!'),
-                backgroundColor: Colors.green,
+            final result = await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const PinSetupScreen(isForFingerprintSetup: true),
               ),
             );
+            
+            // If PIN setup was successful, try to enable fingerprint
+            if (result == true) {
+              // Reload PIN status
+              final pinSet = await authService.isPinSet();
+              setState(() {
+                _pinSet = pinSet;
+              });
+              
+              final success = await authService.enableFingerprint();
+              if (success) {
+                setState(() {
+                  _fingerprintEnabled = true;
+                });
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Fingerprint authentication enabled successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Fingerprint authentication was cancelled'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              }
+            }
           }
         } else {
+          // PIN is set up, verify PIN first before enabling fingerprint
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Fingerprint authentication was cancelled'),
-                backgroundColor: Colors.orange,
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => PinVerificationScreen(
+                  reason: 'Enter your PIN to enable fingerprint authentication',
+                  onSuccess: () async {
+                    // PIN verified, proceed with fingerprint enable
+                    final success = await authService.enableFingerprint();
+                    if (success) {
+                      setState(() {
+                        _fingerprintEnabled = true;
+                      });
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Fingerprint authentication enabled successfully!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Fingerprint authentication was cancelled'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    }
+                    // Go back to profile screen
+                    Navigator.of(context).pop();
+                  },
+                ),
               ),
             );
           }
@@ -386,6 +453,90 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           _isTogglingFingerprint = false;
         });
       }
+    }
+  }
+
+  Future<void> _managePin() async {
+    try {
+      // Navigate to PIN setup screen
+      if (mounted) {
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PinSetupScreen(
+              isForFingerprintSetup: false,
+            ),
+          ),
+        );
+        
+        // Reload PIN status after returning
+        if (result == true) {
+          final authService = AuthService();
+          final pinSet = await authService.isPinSet();
+          setState(() {
+            _pinSet = pinSet;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error managing PIN: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removePin() async {
+    // Navigate to PIN removal screen
+    if (mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PinScreen(
+            mode: PinMode.remove,
+            title: 'Remove PIN',
+            subtitle: 'Enter your current PIN to remove it',
+            onSuccess: () async {
+              // PIN verified, remove it
+              try {
+                final authService = AuthService();
+                await authService.removePin();
+                
+                // Also disable fingerprint if it was enabled
+                if (_fingerprintEnabled) {
+                  await authService.disableFingerprint();
+                  setState(() {
+                    _fingerprintEnabled = false;
+                  });
+                }
+                
+                setState(() {
+                  _pinSet = false;
+                });
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PIN removed successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error removing PIN: ${e.toString()}')),
+                  );
+                }
+              }
+              // Go back to profile screen
+              Navigator.of(context).pop();
+            },
+            onCancel: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      );
     }
   }
 
@@ -834,6 +985,92 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 inactiveTrackColor: const Color(0xFFE6FDD8).withOpacity(0.1),
                               ),
                             ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // PIN Management Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00432D),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'PIN Management',
+                          style: TextStyle(
+                            color: Color(0xFFE6FDD8),
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ListTile(
+                          leading: const Icon(
+                            Icons.pin,
+                            color: Color(0xFFE6FDD8),
+                            size: 24,
+                          ),
+                          title: Text(
+                            _pinSet ? 'Change PIN' : 'Set Up PIN',
+                            style: const TextStyle(
+                              color: Color(0xFFE6FDD8),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            _pinSet 
+                                ? 'Update your PIN for app authentication'
+                                : 'Create a PIN for secure app access',
+                            style: const TextStyle(
+                              color: Color(0xFFE6FDD8),
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Color(0xFFE6FDD8),
+                            size: 16,
+                          ),
+                          onTap: _managePin,
+                        ),
+                        if (_pinSet) ...[
+                          const SizedBox(height: 8),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                              size: 24,
+                            ),
+                            title: const Text(
+                              'Remove PIN',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: const Text(
+                              'Remove PIN authentication from your account',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.red,
+                              size: 16,
+                            ),
+                            onTap: _removePin,
                           ),
                         ],
                       ],

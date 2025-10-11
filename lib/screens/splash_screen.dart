@@ -3,6 +3,7 @@ import 'onboarding_screen.dart';
 import 'username_screen.dart';
 import 'homepage_screen.dart';
 import 'sign_in_screen.dart';
+import 'pin_verification_screen.dart';
 import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -29,16 +30,28 @@ class _SplashScreenState extends State<SplashScreen> {
       final authService = AuthService();
       final initialRoute = await authService.getInitialRoute();
       
-      // Check if user is logged in and fingerprint is enabled
+      // Check if user is logged in and authentication is enabled
       if (initialRoute == '/homepage') {
         final isFingerprintEnabled = await authService.isFingerprintEnabled();
         final isFingerprintAvailable = await authService.isFingerprintAvailable();
+        final isPinSet = await authService.isPinSet();
         
         if (isFingerprintEnabled && isFingerprintAvailable) {
           // Show fingerprint authentication
           await _authenticateWithFingerprint();
           return;
+        } else if (isPinSet && !isFingerprintEnabled) {
+          // PIN is set but fingerprint is not enabled - show PIN authentication
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const PinVerificationScreen(
+                reason: 'Enter your PIN to access the app',
+              ),
+            ),
+          );
+          return;
         }
+        // If neither PIN nor fingerprint is enabled, proceed normally
       }
       
       Widget destination;
@@ -111,20 +124,34 @@ class _SplashScreenState extends State<SplashScreen> {
           style: TextStyle(color: Color(0xFFE6FDD8)),
         ),
         content: const Text(
-          'Fingerprint authentication is required to access the app. Please try again or sign in with your credentials.',
+          'Fingerprint authentication failed. You can try again or use your PIN.',
           style: TextStyle(color: Color(0xFFE6FDD8)),
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              // Go to sign-in screen
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const SignInScreen()),
-              );
+              // Check if PIN is set up
+              final authService = AuthService();
+              final isPinSet = await authService.isPinSet();
+              if (isPinSet) {
+                // Go to PIN verification
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const PinVerificationScreen(
+                      reason: 'Enter your PIN to access the app',
+                    ),
+                  ),
+                );
+              } else {
+                // No PIN set up, go to sign-in screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const SignInScreen()),
+                );
+              }
             },
             child: const Text(
-              'Sign In',
+              'Use PIN',
               style: TextStyle(color: Color(0xFFE6FDD8)),
             ),
           ),
@@ -160,15 +187,29 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              // Go to sign-in screen
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const SignInScreen()),
-              );
+              // Check if PIN is set up
+              final authService = AuthService();
+              final isPinSet = await authService.isPinSet();
+              if (isPinSet) {
+                // Go to PIN verification
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const PinVerificationScreen(
+                      reason: 'Enter your PIN to access the app',
+                    ),
+                  ),
+                );
+              } else {
+                // No PIN set up, go to sign-in screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const SignInScreen()),
+                );
+              }
             },
             child: const Text(
-              'Sign In',
+              'Use PIN',
               style: TextStyle(color: Color(0xFFE6FDD8)),
             ),
           ),

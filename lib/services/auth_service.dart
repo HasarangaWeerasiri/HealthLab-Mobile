@@ -11,6 +11,7 @@ class AuthService {
   static const String _userPreferencesKey = 'user_preferences';
   static const String _lastLoginKey = 'last_login';
   static const String _fingerprintEnabledKey = 'fingerprint_enabled';
+  static const String _pinKey = 'user_pin';
 
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -245,6 +246,7 @@ class AuthService {
       await prefs.remove(_lastLoginKey);
       await prefs.remove('profile_picture');
       await prefs.remove(_fingerprintEnabledKey);
+      await prefs.remove(_pinKey);
     } catch (e) {
       print('Error clearing local data: $e');
     }
@@ -381,6 +383,85 @@ class AuthService {
     } catch (e) {
       print('Error getting biometric description: $e');
       return 'Biometric authentication not available';
+    }
+  }
+
+  // PIN Authentication Methods
+
+  /// Check if PIN is set up
+  Future<bool> isPinSet() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pin = prefs.getString(_pinKey);
+      return pin != null && pin.isNotEmpty;
+    } catch (e) {
+      print('Error checking PIN status: $e');
+      return false;
+    }
+  }
+
+  /// Set up PIN for the user
+  Future<void> setPin(String pin) async {
+    try {
+      if (pin.length != 4) {
+        throw Exception('PIN must be exactly 4 digits');
+      }
+      
+      if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
+        throw Exception('PIN must contain only numbers');
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_pinKey, pin);
+    } catch (e) {
+      print('Error setting PIN: $e');
+      throw e;
+    }
+  }
+
+  /// Verify PIN
+  Future<bool> verifyPin(String pin) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedPin = prefs.getString(_pinKey);
+      
+      if (storedPin == null) {
+        return false;
+      }
+      
+      return storedPin == pin;
+    } catch (e) {
+      print('Error verifying PIN: $e');
+      return false;
+    }
+  }
+
+  /// Update PIN (requires current PIN verification)
+  Future<bool> updatePin(String currentPin, String newPin) async {
+    try {
+      // Verify current PIN first
+      final isCurrentPinValid = await verifyPin(currentPin);
+      if (!isCurrentPinValid) {
+        return false;
+      }
+
+      // Set new PIN
+      await setPin(newPin);
+      return true;
+    } catch (e) {
+      print('Error updating PIN: $e');
+      return false;
+    }
+  }
+
+  /// Remove PIN
+  Future<void> removePin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_pinKey);
+    } catch (e) {
+      print('Error removing PIN: $e');
+      throw e;
     }
   }
 }
