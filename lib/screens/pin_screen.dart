@@ -15,6 +15,7 @@ class PinScreen extends StatefulWidget {
   final String? initialPin; // For confirm mode
   final VoidCallback? onSuccess;
   final VoidCallback? onCancel;
+  final Function(String)? onPinCreated; // Callback to get created PIN
 
   const PinScreen({
     super.key,
@@ -24,6 +25,7 @@ class PinScreen extends StatefulWidget {
     this.initialPin,
     this.onSuccess,
     this.onCancel,
+    this.onPinCreated,
   });
 
   @override
@@ -118,11 +120,14 @@ class _PinScreenState extends State<PinScreen> {
 
       switch (widget.mode) {
         case PinMode.create:
-          await authService.setPin(pin);
+          // For create mode, call the callback with the PIN
+          if (widget.onPinCreated != null) {
+            widget.onPinCreated!(pin);
+          }
           if (widget.onSuccess != null) {
             widget.onSuccess!();
           } else {
-            Navigator.of(context).pop(true);
+            Navigator.of(context).pop(pin);
           }
           break;
 

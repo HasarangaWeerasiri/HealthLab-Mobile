@@ -24,6 +24,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       backgroundColor: const Color(0xFF201E1A),
       body: _isCreatingPin
           ? PinScreen(
+              key: const ValueKey('create_pin'),
               mode: PinMode.create,
               title: widget.isForFingerprintSetup 
                   ? 'Set Up PIN for Fingerprint'
@@ -31,7 +32,13 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               subtitle: widget.isForFingerprintSetup
                   ? 'Create a PIN to enable fingerprint authentication'
                   : 'Create a 4-digit PIN for secure app access',
+              onPinCreated: (pin) {
+                setState(() {
+                  _createdPin = pin;
+                });
+              },
               onSuccess: () {
+                // Move to confirmation step
                 setState(() {
                   _isCreatingPin = false;
                 });
@@ -41,6 +48,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               },
             )
           : PinScreen(
+              key: const ValueKey('confirm_pin'),
               mode: PinMode.confirm,
               title: 'Confirm PIN',
               subtitle: 'Re-enter your PIN to confirm',
