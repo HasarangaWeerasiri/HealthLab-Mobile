@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../services/auth_service.dart';
 import 'sign_in_screen.dart';
 import 'homepage_screen.dart';
@@ -7,6 +8,7 @@ import 'my_experiments_screen.dart';
 import 'pin_setup_screen.dart';
 import 'pin_verification_screen.dart';
 import 'pin_screen.dart';
+import 'achievements_screen.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -26,6 +28,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _fingerprintAvailable = false;
   bool _isTogglingFingerprint = false;
   bool _pinSet = false;
+  String _selectedProfilePicture = 'person1'; // Default to person1
+  List<String> _usernameSuggestions = [];
+  bool _showSuggestions = false;
 
   @override
   void initState() {
@@ -62,6 +67,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() {
       _isCheckingUsername = true;
       _usernameValidationError = null;
+      _showSuggestions = false;
     });
 
     Future.delayed(const Duration(milliseconds: 500), () async {
@@ -71,7 +77,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           if (mounted) {
             setState(() {
               _isCheckingUsername = false;
-              _usernameValidationError = isTaken ? 'Username is already taken' : null;
+              if (isTaken) {
+                _usernameValidationError = 'Username is already taken';
+                _generateUsernameSuggestions(username);
+                _showSuggestions = true;
+              } else {
+                _usernameValidationError = null;
+                _showSuggestions = false;
+              }
             });
           }
         } catch (e) {
@@ -79,11 +92,49 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             setState(() {
               _isCheckingUsername = false;
               _usernameValidationError = 'Error checking username availability';
+              _showSuggestions = false;
             });
           }
         }
       }
     });
+  }
+
+  void _generateUsernameSuggestions(String baseUsername) {
+    final suggestions = <String>[];
+    final base = baseUsername.toLowerCase();
+    
+    // Add numbers
+    for (int i = 1; i <= 5; i++) {
+      suggestions.add('${base}_$i');
+      suggestions.add('${base}$i');
+    }
+    
+    // Add common suffixes
+    final suffixes = ['_user', '_official', '_pro', '_2024', '_new'];
+    for (final suffix in suffixes) {
+      suggestions.add('$base$suffix');
+    }
+    
+    // Add random characters
+    final randomChars = ['x', 'z', 'q', 'w'];
+    for (final char in randomChars) {
+      suggestions.add('${base}_$char');
+    }
+    
+    setState(() {
+      _usernameSuggestions = suggestions.take(6).toList();
+    });
+  }
+
+  void _selectSuggestion(String suggestion) {
+    setState(() {
+      _usernameController.text = suggestion;
+      _showSuggestions = false;
+      _usernameValidationError = null;
+    });
+    // Trigger validation for the new username
+    _onUsernameChanged();
   }
 
   @override
@@ -109,6 +160,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _fingerprintAvailable = fingerprintAvailable;
         _fingerprintEnabled = fingerprintEnabled;
         _pinSet = pinSet;
+        _selectedProfilePicture = userData['profilePicture'] ?? 'person1';
         _loading = false;
       });
     } catch (e) {
@@ -132,6 +184,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _isEditingUsername = false;
         _usernameValidationError = null;
         _isCheckingUsername = false;
+        _showSuggestions = false;
       });
       return;
     }
@@ -159,6 +212,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _isEditingUsername = false;
         _usernameValidationError = null;
         _isCheckingUsername = false;
+        _showSuggestions = false;
       });
       
       if (mounted) {
@@ -215,7 +269,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Profile Picture',
+              'Choose Profile Picture',
               style: TextStyle(
                 color: Color(0xFFE6FDD8),
                 fontSize: 20,
@@ -223,11 +277,31 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            // Lottie Animation Options
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildProfilePictureOption('person1', 'assets/lottie/person1.json'),
+                _buildProfilePictureOption('person2', 'assets/lottie/Person2.json'),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Divider
+            Container(
+              height: 1,
+              color: const Color(0xFFE6FDD8).withOpacity(0.3),
+            ),
+            const SizedBox(height: 20),
+            // Other options (coming soon)
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Color(0xFFE6FDD8)),
               title: const Text(
                 'Take Photo',
                 style: TextStyle(color: Color(0xFFE6FDD8)),
+              ),
+              subtitle: const Text(
+                'Coming Soon',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -240,27 +314,114 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 'Choose from Gallery',
                 style: TextStyle(color: Color(0xFFE6FDD8)),
               ),
+              subtitle: const Text(
+                'Coming Soon',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _showComingSoonDialog();
               },
             ),
-            if (_userData['profilePicture'] != null && 
-                _userData['profilePicture']!.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text(
-                  'Remove Photo',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _removeProfilePicture();
-                },
-              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProfilePictureOption(String id, String assetPath) {
+    final isSelected = _selectedProfilePicture == id;
+    return GestureDetector(
+      onTap: () => _selectProfilePicture(id),
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFE6FDD8).withOpacity(0.3),
+            width: isSelected ? 3 : 2,
+          ),
+          color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.transparent,
+        ),
+        child: ClipOval(
+          child: Lottie.asset(
+            assetPath,
+            fit: BoxFit.contain,
+            repeat: true,
+            animate: true,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectProfilePicture(String pictureId) {
+    setState(() {
+      _selectedProfilePicture = pictureId;
+    });
+    Navigator.pop(context);
+    _updateProfilePicture(pictureId);
+  }
+
+  Future<void> _updateProfilePicture(String pictureId) async {
+    try {
+      final authService = AuthService();
+      await authService.updateProfilePicture(pictureId);
+      
+      // Reload user data to reflect changes
+      await _loadUserData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating profile picture: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Widget _getProfilePictureWidget() {
+    final profilePicture = _userData['profilePicture'];
+    
+    // If user has a custom profile picture (URL), show it
+    if (profilePicture != null && profilePicture.isNotEmpty && !profilePicture.startsWith('person')) {
+      return Image.network(
+        profilePicture,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _getDefaultProfilePicture();
+        },
+      );
+    }
+    
+    // Otherwise show the selected Lottie animation
+    return _getDefaultProfilePicture();
+  }
+
+  Widget _getDefaultProfilePicture() {
+    final selectedPicture = _userData['profilePicture'] ?? _selectedProfilePicture;
+    String assetPath;
+    
+    if (selectedPicture == 'person2') {
+      assetPath = 'assets/lottie/Person2.json';
+    } else {
+      assetPath = 'assets/lottie/person1.json'; // Default to person1
+    }
+    
+    return Lottie.asset(
+      assetPath,
+      fit: BoxFit.contain,
+      repeat: true,
+      animate: true,
     );
   }
 
@@ -606,160 +767,206 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             child: ClipOval(
-                              child: _userData['profilePicture'] != null && 
-                                     _userData['profilePicture']!.isNotEmpty
-                                  ? Image.network(
-                                      _userData['profilePicture']!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const Icon(
-                                          Icons.person,
-                                          size: 60,
-                                          color: Color(0xFFE6FDD8),
-                                        );
-                                      },
-                                    )
-                                  : const Icon(
-                                      Icons.person,
-                                      size: 60,
-                                      color: Color(0xFFE6FDD8),
-                                    ),
+                              child: _getProfilePictureWidget(),
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // Username - Editable
+                        // Username - Modern Editable Interface
                         if (_isEditingUsername) ...[
-                          Column(
-                            children: [
-                              SizedBox(
-                                width: 250,
-                                child: TextField(
+                          Container(
+                            width: 280,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00432D),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _usernameValidationError != null 
+                                    ? Colors.red.withOpacity(0.5)
+                                    : const Color(0xFF4CAF50).withOpacity(0.3),
+                                width: 2,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                TextField(
                                   controller: _usernameController,
                                   style: const TextStyle(
                                     color: Color(0xFFE6FDD8),
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                   textAlign: TextAlign.center,
                                   decoration: InputDecoration(
-                                    border: UnderlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: _usernameValidationError != null 
-                                            ? Colors.red 
-                                            : const Color(0xFFE6FDD8).withOpacity(0.5),
-                                      ),
+                                    hintText: 'Enter username',
+                                    hintStyle: TextStyle(
+                                      color: const Color(0xFFE6FDD8).withOpacity(0.5),
                                     ),
-                                    enabledBorder: UnderlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: _usernameValidationError != null 
-                                            ? Colors.red 
-                                            : const Color(0xFFE6FDD8).withOpacity(0.5),
-                                      ),
-                                    ),
-                                    focusedBorder: UnderlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: _usernameValidationError != null 
-                                            ? Colors.red 
-                                            : const Color(0xFFE6FDD8),
-                                      ),
-                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
                                     suffixIcon: _isCheckingUsername
                                         ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
+                                            width: 20,
+                                            height: 20,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              color: Color(0xFFE6FDD8),
+                                              color: Color(0xFF4CAF50),
                                             ),
                                           )
                                         : _usernameValidationError == null && 
                                           _usernameController.text.trim().isNotEmpty
                                             ? const Icon(
                                                 Icons.check_circle,
-                                                color: Colors.green,
+                                                color: Color(0xFF4CAF50),
                                                 size: 20,
                                               )
-                                            : null,
+                                            : _usernameValidationError != null
+                                                ? const Icon(
+                                                    Icons.error,
+                                                    color: Colors.red,
+                                                    size: 20,
+                                                  )
+                                                : null,
                                   ),
                                 ),
-                              ),
-                              if (_usernameValidationError != null) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  _usernameValidationError!,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
+                                if (_usernameValidationError != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _usernameValidationError!,
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  textAlign: TextAlign.center,
+                                ],
+                                if (_showSuggestions && _usernameSuggestions.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Suggestions:',
+                                    style: TextStyle(
+                                      color: Color(0xFFE6FDD8),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: _usernameSuggestions.map((suggestion) => 
+                                      GestureDetector(
+                                        onTap: () => _selectSuggestion(suggestion),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF4CAF50).withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: const Color(0xFF4CAF50).withOpacity(0.5),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            suggestion,
+                                            style: const TextStyle(
+                                              color: Color(0xFF4CAF50),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ).toList(),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: (_usernameValidationError == null && 
+                                                !_isCheckingUsername && 
+                                                _usernameController.text.trim().isNotEmpty)
+                                          ? _updateUsername
+                                          : null,
+                                      icon: const Icon(Icons.check, size: 16),
+                                      label: const Text('Save'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF4CAF50),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _isEditingUsername = false;
+                                          _usernameController.text = _userData['username'] ?? '';
+                                          _usernameValidationError = null;
+                                          _isCheckingUsername = false;
+                                          _showSuggestions = false;
+                                        });
+                                      },
+                                      icon: const Icon(Icons.close, size: 16),
+                                      label: const Text('Cancel'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(0xFFE6FDD8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
-                            ],
+                            ),
                           ),
                         ] else ...[
-                          Text(
-                            _userData['username'] ?? 'User',
-                            style: const TextStyle(
-                              color: Color(0xFFE6FDD8),
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isEditingUsername = true;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00432D),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFFE6FDD8).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _userData['username'] ?? 'User',
+                                    style: const TextStyle(
+                                      color: Color(0xFFE6FDD8),
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF4CAF50).withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF4CAF50),
+                                      size: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
-                        // Action buttons
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(width: 8),
-                            if (_isEditingUsername) ...[
-                              IconButton(
-                                onPressed: (_usernameValidationError == null && 
-                                          !_isCheckingUsername && 
-                                          _usernameController.text.trim().isNotEmpty)
-                                    ? _updateUsername
-                                    : null,
-                                icon: Icon(
-                                  Icons.check,
-                                  color: (_usernameValidationError == null && 
-                                         !_isCheckingUsername && 
-                                         _usernameController.text.trim().isNotEmpty)
-                                      ? const Color(0xFFE6FDD8)
-                                      : const Color(0xFFE6FDD8).withOpacity(0.5),
-                                  size: 20,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isEditingUsername = false;
-                                    _usernameController.text = _userData['username'] ?? '';
-                                    _usernameValidationError = null;
-                                    _isCheckingUsername = false;
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Color(0xFFE6FDD8),
-                                  size: 20,
-                                ),
-                              ),
-                            ] else ...[
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isEditingUsername = true;
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.edit,
-                                  color: Color(0xFFE6FDD8),
-                                  size: 20,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
                         const SizedBox(height: 8),
                         // Email (optional, smaller text)
                         Text(
@@ -774,43 +981,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  
-                  // User Info Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00432D),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'User Information',
-                          style: TextStyle(
-                            color: Color(0xFFE6FDD8),
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildInfoRow('Email', _userData['email'] ?? 'Not available'),
-                        const SizedBox(height: 8),
-                        _buildInfoRow('Username', _userData['username'] ?? 'Not set'),
-                        const SizedBox(height: 8),
-                        _buildInfoRow('User ID', _userData['userId'] ?? 'Not available'),
-                        if (_userData['lastLogin'] != null) ...[
-                          const SizedBox(height: 8),
-                          _buildInfoRow(
-                            'Last Login',
-                            DateTime.tryParse(_userData['lastLogin'])?.toString().split('.')[0] ?? 'Unknown',
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   
                   // Preferences Card
                   if (_userData['preferences'] != null && (_userData['preferences'] as List).isNotEmpty) ...[
@@ -864,6 +1034,65 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  
+                  // Achievements Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00432D),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Achievements',
+                          style: TextStyle(
+                            color: Color(0xFFE6FDD8),
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ListTile(
+                          leading: const Icon(
+                            Icons.emoji_events,
+                            color: Color(0xFFE6FDD8),
+                            size: 24,
+                          ),
+                          title: const Text(
+                            'View Achievements',
+                            style: TextStyle(
+                              color: Color(0xFFE6FDD8),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'Track your progress and unlock achievements',
+                            style: TextStyle(
+                              color: Color(0xFFE6FDD8),
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Color(0xFFE6FDD8),
+                            size: 16,
+                          ),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const AchievementsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   
                   // Security Settings Card
                   Container(

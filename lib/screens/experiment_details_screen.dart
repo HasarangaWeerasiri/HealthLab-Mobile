@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
 import '../widgets/custom_navigation_bar.dart';
 import '../widgets/global_navigation_wrapper.dart';
+import '../services/achievement_service.dart';
 import 'my_experiments_screen.dart';
 import 'create_experiments_screen.dart';
 import 'userprofile_screen.dart';
@@ -12,11 +12,13 @@ import 'share_experiment_screen.dart';
 class ExperimentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> experimentData;
   final String? previousExperimentId; // For navigation back to previous experiment
+  final bool isFromCreatedExperiments; // To distinguish navigation source
 
   const ExperimentDetailsScreen({
     super.key,
     required this.experimentData,
     this.previousExperimentId,
+    this.isFromCreatedExperiments = false,
   });
 
   @override
@@ -30,14 +32,22 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
   List<Map<String, dynamic>> _recommendedExperiments = [];
   String _creatorUsername = '';
   late Map<String, dynamic> _data;
+  int _totalDailyEntries = 0;
+  bool _isFinishing = false;
+  final AchievementService _achievementService = AchievementService();
 
   @override
   void initState() {
     super.initState();
     _data = Map<String, dynamic>.from(widget.experimentData);
     _loadExperimentData();
-    _loadRecommendedExperiments();
+    if (!widget.isFromCreatedExperiments) {
+      _loadRecommendedExperiments();
+    }
     _loadCreatorUsername();
+    if (widget.isFromCreatedExperiments) {
+      _loadTotalDailyEntries();
+    }
   }
 
   Future<void> _loadExperimentData() async {
@@ -98,7 +108,7 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                 'id': doc.id,
                 ...doc.data(),
               })
-          .where((exp) => exp['id'] != (_data['id'] ?? ''))
+          .where((exp) => exp['id'] != (_data['id'] ?? '') && exp['deleted'] != true)
           .toList();
 
       setState(() {
@@ -188,6 +198,9 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
       });
 
       _showSuccessSnackBar('Successfully joined the experiment!');
+      
+      // Check for achievements after joining
+      _achievementService.checkAndUnlockAchievements(context: context);
     } catch (e) {
       print('Error joining experiment: $e');
       _showErrorSnackBar('Failed to join experiment. Please try again.');
@@ -262,6 +275,182 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
     );
   }
 
+  Future<void> _loadTotalDailyEntries() async {
+    try {
+      final experimentId = _data['id'] ?? '';
+      if (experimentId.isEmpty) return;
+
+      // Get all users who joined this experiment
+      final joinedUsersSnapshot = await FirebaseFirestore.instance
+          .collectionGroup('joinedExperiments')
+          .where(FieldPath.documentId, isEqualTo: experimentId)
+          .get();
+
+      int totalEntries = 0;
+      for (final doc in joinedUsersSnapshot.docs) {
+        final entriesSnapshot = await doc.reference
+            .collection('dailyEntries')
+            .get();
+        totalEntries += entriesSnapshot.docs.length;
+      }
+
+      setState(() {
+        _totalDailyEntries = totalEntries;
+      });
+    } catch (e) {
+      print('Error loading total daily entries: $e');
+    }
+  }
+
+  Future<void> _finishExperiment() async {
+    if (_isFinishing) return;
+
+    final experimentTitle = _data['title'] as String? ?? 'this experiment';
+    
+     // Show confirmation dialog
+     final shouldFinish = await showDialog<bool>(
+       context: context,
+       builder: (context) {
+         final TextEditingController controller = TextEditingController();
+         bool isButtonEnabled = false;
+         
+         return StatefulBuilder(
+           builder: (context, setDialogState) {
+             return AlertDialog(
+               backgroundColor: const Color(0xFF00432D),
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+               title: const Text(
+                 'Delete Experiment',
+                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+               ),
+               content: SingleChildScrollView(
+                 child: Column(
+                   mainAxisSize: MainAxisSize.min,
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     const Text(
+                       'Are you sure you want to delete this experiment? This will permanently remove the experiment and all associated data from all users. This action cannot be undone.',
+                       style: TextStyle(color: Colors.white70),
+                     ),
+                     const SizedBox(height: 16),
+                     // Highlighted experiment title
+                     Container(
+                       width: double.infinity,
+                       padding: const EdgeInsets.all(12),
+                       decoration: BoxDecoration(
+                         color: const Color(0xFFCDEDC6).withOpacity(0.2),
+                         borderRadius: BorderRadius.circular(8),
+                         border: Border.all(color: const Color(0xFFCDEDC6), width: 1),
+                       ),
+                       child: Text(
+                         experimentTitle,
+                         style: const TextStyle(
+                           color: Color(0xFFCDEDC6),
+                           fontSize: 16,
+                           fontWeight: FontWeight.bold,
+                         ),
+                         textAlign: TextAlign.center,
+                       ),
+                     ),
+                     const SizedBox(height: 16),
+                     const Text(
+                       'To confirm, please type the experiment name above:',
+                       style: TextStyle(color: Colors.white70, fontSize: 14),
+                     ),
+                     const SizedBox(height: 8),
+                     TextField(
+                       controller: controller,
+                       style: const TextStyle(color: Colors.white),
+                       onChanged: (value) {
+                         final isMatch = value.trim().toLowerCase() == experimentTitle.trim().toLowerCase();
+                         if (isMatch != isButtonEnabled) {
+                           isButtonEnabled = isMatch;
+                           setDialogState(() {});
+                         }
+                       },
+                       decoration: InputDecoration(
+                         hintText: 'Type experiment name here...',
+                         hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                         border: OutlineInputBorder(
+                           borderRadius: BorderRadius.circular(8),
+                           borderSide: const BorderSide(color: Colors.white54),
+                         ),
+                         enabledBorder: OutlineInputBorder(
+                           borderRadius: BorderRadius.circular(8),
+                           borderSide: const BorderSide(color: Colors.white54),
+                         ),
+                         focusedBorder: OutlineInputBorder(
+                           borderRadius: BorderRadius.circular(8),
+                           borderSide: const BorderSide(color: Color(0xFFCDEDC6)),
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+               actions: [
+                 TextButton(
+                   onPressed: () => Navigator.of(context).pop(false),
+                   child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                 ),
+                 ElevatedButton(
+                   onPressed: isButtonEnabled
+                       ? () => Navigator.of(context).pop(true)
+                       : null,
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: const Color(0xFFFF875F),
+                     foregroundColor: Colors.white,
+                   ),
+                   child: const Text('Delete Experiment'),
+                 ),
+               ],
+             );
+           },
+         );
+       },
+     );
+
+    if (shouldFinish != true) return;
+
+    setState(() => _isFinishing = true);
+
+     try {
+       final experimentId = _data['id'] ?? '';
+       if (experimentId.isEmpty) {
+         _showErrorSnackBar('Invalid experiment');
+         return;
+       }
+
+       print('Starting deletion process for experiment: $experimentId');
+       
+       // Mark experiment as deleted instead of actually deleting it
+       await FirebaseFirestore.instance
+           .collection('experiments')
+           .doc(experimentId)
+           .update({
+         'deleted': true,
+         'deletedAt': FieldValue.serverTimestamp(),
+       });
+       
+       print('Marked experiment as deleted');
+
+       _showSuccessSnackBar('Experiment deleted successfully!');
+       
+       // Navigate back to my experiments
+       Navigator.of(context).pushReplacement(
+         MaterialPageRoute(
+           builder: (context) => const MyExperimentsScreen(),
+         ),
+       );
+     } catch (e) {
+       print('Error deleting experiment: $e');
+       print('Experiment ID: ${_data['id']}');
+       _showErrorSnackBar('Failed to delete experiment: ${e.toString()}');
+     } finally {
+       setState(() => _isFinishing = false);
+     }
+  }
+
   void _navigateToRecommendedExperiment(Map<String, dynamic> experimentData) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -332,10 +521,11 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
-                        Icons.share,
+                      child: Image.asset(
+                        'assets/icons/send.png',
+                        width: 24,
+                        height: 24,
                         color: Colors.white,
-                        size: 24,
                       ),
                     ),
                   ),
@@ -387,37 +577,101 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                       ),
                       const SizedBox(height: 24),
                       
-                      // Join button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : (_isJoined ? _leaveExperiment : _joinExperiment),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFCDEDC6),
-                            foregroundColor: const Color(0xFF00432D),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                      // Join button or Finish button for created experiments
+                      if (widget.isFromCreatedExperiments) ...[
+                        // Daily entries count
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00432D)),
-                                  ),
-                                )
-                              : Text(
-                                  _isJoined ? 'Leave Experiment' : 'Join Experiment',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          child: Column(
+                            children: [
+                              Text(
+                                '$_totalDailyEntries',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                              const Text(
+                                'Daily Entries Made',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        // Finish Experiment button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isFinishing ? null : _finishExperiment,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF875F),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _isFinishing
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                 : const Text(
+                                     'Delete Experiment',
+                                     style: TextStyle(
+                                       fontSize: 16,
+                                       fontWeight: FontWeight.w600,
+                                     ),
+                                   ),
+                          ),
+                        ),
+                      ] else ...[
+                        // Join button for regular experiments
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : (_isJoined ? _leaveExperiment : _joinExperiment),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFCDEDC6),
+                              foregroundColor: const Color(0xFF00432D),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00432D)),
+                                    ),
+                                  )
+                                : Text(
+                                    _isJoined ? 'Leave Experiment' : 'Join Experiment',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       
                       // Creator and date info
@@ -449,8 +703,8 @@ class _ExperimentDetailsScreenState extends State<ExperimentDetailsScreen> {
                       ),
                       const SizedBox(height: 32),
                       
-                      // Recommended for you section
-                      if (_recommendedExperiments.isNotEmpty) ...[
+                      // Recommended for you section (only show when not from created experiments)
+                      if (!widget.isFromCreatedExperiments && _recommendedExperiments.isNotEmpty) ...[
                         const Text(
                           'Recommended for you',
                           style: TextStyle(

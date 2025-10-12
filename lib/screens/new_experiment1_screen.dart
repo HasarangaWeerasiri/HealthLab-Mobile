@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../utils/app_utils.dart';
 import '../services/experiment_service.dart';
 import '../services/draft_experiment_service.dart';
+import '../services/achievement_service.dart';
 import 'homepage_screen.dart';
 import 'userprofile_screen.dart';
 import 'my_experiments_screen.dart';
@@ -18,6 +19,7 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _descCtrl = TextEditingController();
+  final AchievementService _achievementService = AchievementService();
   final TextEditingController _durationCtrl = TextEditingController();
   final List<String> _emojis = <String>[]; // up to 3
   late final List<String> _categories;
@@ -376,6 +378,10 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
         ),
       );
       if (!mounted) return;
+      
+      // Check for achievements after creating experiment
+      _achievementService.checkAndUnlockAchievements(context: context);
+      
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;

@@ -188,6 +188,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 final query = _searchCtrl.text.trim().toLowerCase();
                 final filtered = docs.where((d) {
                   final data = d.data();
+                  // Filter out deleted experiments
+                  if (data['deleted'] == true) return false;
+                  
                   final title = (data['title'] as String? ?? '').toLowerCase();
                   final desc = (data['description'] as String? ?? '').toLowerCase();
                   if (_selectedCategory != null && data['category'] != _selectedCategory) return false;
