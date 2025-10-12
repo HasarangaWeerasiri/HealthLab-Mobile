@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'onboarding_screen.dart';
 import 'username_screen.dart';
-import 'homepage_screen.dart';
+import '../widgets/global_navigation_wrapper.dart';
+import 'sign_in_screen.dart';
+import 'pin_verification_screen.dart';
 import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -28,10 +30,34 @@ class _SplashScreenState extends State<SplashScreen> {
       final authService = AuthService();
       final initialRoute = await authService.getInitialRoute();
       
+      // Check if user is logged in and authentication is enabled
+      if (initialRoute == '/homepage') {
+        final isFingerprintEnabled = await authService.isFingerprintEnabled();
+        final isFingerprintAvailable = await authService.isFingerprintAvailable();
+        final isPinSet = await authService.isPinSet();
+        
+        if (isFingerprintEnabled && isFingerprintAvailable) {
+          // Show fingerprint authentication
+          await _authenticateWithFingerprint();
+          return;
+        } else if (isPinSet && !isFingerprintEnabled) {
+          // PIN is set but fingerprint is not enabled - show PIN authentication
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const PinVerificationScreen(
+                reason: 'Enter your PIN to access the app',
+              ),
+            ),
+          );
+          return;
+        }
+        // If neither PIN nor fingerprint is enabled, proceed normally
+      }
+      
       Widget destination;
       switch (initialRoute) {
         case '/homepage':
-          destination = const HomepageScreen();
+          destination = const GlobalNavigationWrapper(initialIndex: 0);
           break;
         case '/username':
           destination = const UsernameScreen();
@@ -51,6 +77,145 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     }
+  }
+
+  Future<void> _authenticateWithFingerprint() async {
+    try {
+      final authService = AuthService();
+      final success = await authService.authenticateWithFingerprint();
+      
+      if (mounted) {
+        if (success) {
+          // Authentication successful, proceed to homepage
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const GlobalNavigationWrapper(initialIndex: 0)),
+          );
+        } else {
+          // Authentication failed or cancelled, show error and go to sign-in
+          _showAuthenticationFailedDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        // Handle authentication errors
+        String errorMessage = 'Authentication failed';
+        
+        if (e.toString().contains('not available')) {
+          errorMessage = 'Fingerprint authentication is not available';
+        } else if (e.toString().contains('not enrolled')) {
+          errorMessage = 'Please set up fingerprint authentication in your device settings';
+        } else if (e.toString().contains('locked')) {
+          errorMessage = 'Fingerprint authentication is locked. Please use your device passcode';
+        }
+        
+        _showAuthenticationErrorDialog(errorMessage);
+      }
+    }
+  }
+
+  void _showAuthenticationFailedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF00432D),
+        title: const Text(
+          'Authentication Required',
+          style: TextStyle(color: Color(0xFFE6FDD8)),
+        ),
+        content: const Text(
+          'Fingerprint authentication failed. You can try again or use your PIN.',
+          style: TextStyle(color: Color(0xFFE6FDD8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Check if PIN is set up
+              final authService = AuthService();
+              final isPinSet = await authService.isPinSet();
+              if (isPinSet) {
+                // Go to PIN verification
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const PinVerificationScreen(
+                      reason: 'Enter your PIN to access the app',
+                    ),
+                  ),
+                );
+              } else {
+                // No PIN set up, go to sign-in screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const SignInScreen()),
+                );
+              }
+            },
+            child: const Text(
+              'Use PIN',
+              style: TextStyle(color: Color(0xFFE6FDD8)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Try fingerprint authentication again
+              _authenticateWithFingerprint();
+            },
+            child: const Text(
+              'Try Again',
+              style: TextStyle(color: Color(0xFFE6FDD8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAuthenticationErrorDialog(String errorMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF00432D),
+        title: const Text(
+          'Authentication Error',
+          style: TextStyle(color: Color(0xFFE6FDD8)),
+        ),
+        content: Text(
+          errorMessage,
+          style: const TextStyle(color: Color(0xFFE6FDD8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Check if PIN is set up
+              final authService = AuthService();
+              final isPinSet = await authService.isPinSet();
+              if (isPinSet) {
+                // Go to PIN verification
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const PinVerificationScreen(
+                      reason: 'Enter your PIN to access the app',
+                    ),
+                  ),
+                );
+              } else {
+                // No PIN set up, go to sign-in screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const SignInScreen()),
+                );
+              }
+            },
+            child: const Text(
+              'Use PIN',
+              style: TextStyle(color: Color(0xFFE6FDD8)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

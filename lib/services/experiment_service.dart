@@ -62,10 +62,10 @@ class ExperimentService {
           .map((doc) {
             final data = doc.data();
             data['id'] = doc.id;
-            print('DEBUG: Experiment: ${data['title']}, published: ${data['published']}');
+            print('DEBUG: Experiment: ${data['title']}, published: ${data['published']}, deleted: ${data['deleted']}');
             return data;
           })
-          .where((experiment) => experiment['published'] == true)
+          .where((experiment) => experiment['published'] == true && experiment['deleted'] != true)
           .toList();
 
       print('DEBUG: Found ${experiments.length} published experiments');
@@ -127,10 +127,15 @@ class ExperimentService {
           
           if (experimentDoc.exists) {
             final experimentData = experimentDoc.data()!;
-            experimentData['id'] = experimentId;
-            experimentData['joinedAt'] = joinedData['joinedAt'];
-            print('DEBUG: Added joined experiment: ${experimentData['title']}');
-            joinedExperiments.add(experimentData);
+            // Only add if experiment is not deleted
+            if (experimentData['deleted'] != true) {
+              experimentData['id'] = experimentId;
+              experimentData['joinedAt'] = joinedData['joinedAt'];
+              print('DEBUG: Added joined experiment: ${experimentData['title']}');
+              joinedExperiments.add(experimentData);
+            } else {
+              print('DEBUG: Skipping deleted experiment: ${experimentData['title']}');
+            }
           } else {
             print('DEBUG: Experiment $experimentId not found in experiments collection');
           }

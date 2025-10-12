@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../utils/app_utils.dart';
 import '../services/experiment_service.dart';
 import '../services/draft_experiment_service.dart';
+import '../services/achievement_service.dart';
 import 'homepage_screen.dart';
 import 'userprofile_screen.dart';
 import 'my_experiments_screen.dart';
 import 'create_experiments_screen.dart';
-import '../widgets/custom_navigation_bar.dart';
 
 class NewExperiment1Screen extends StatefulWidget {
   const NewExperiment1Screen({super.key});
@@ -16,11 +16,10 @@ class NewExperiment1Screen extends StatefulWidget {
 }
 
 class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
-  int _selectedIndex = 2; // plus highlighted
-
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _descCtrl = TextEditingController();
+  final AchievementService _achievementService = AchievementService();
   final TextEditingController _durationCtrl = TextEditingController();
   final List<String> _emojis = <String>[]; // up to 3
   late final List<String> _categories;
@@ -212,10 +211,6 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
           ),
         ),
       ),
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
   }
 
@@ -225,43 +220,6 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
     // Load a provided draft once
     if (_draftId == null && (_titleCtrl.text.isEmpty && _fields.isEmpty)) {
       loadDraftIfProvided(context);
-    }
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
-          ),
-        );
-        break;
-      case 1: // My Experiments
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyExperimentsScreen(),
-          ),
-        );
-        break;
-      case 2: // Create Experiment
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const CreateExperimentsScreen(),
-          ),
-        );
-        break;
-      case 3: // Profile
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const UserProfileScreen(),
-          ),
-        );
-        break;
     }
   }
 
@@ -420,6 +378,10 @@ class _NewExperiment1ScreenState extends State<NewExperiment1Screen> {
         ),
       );
       if (!mounted) return;
+      
+      // Check for achievements after creating experiment
+      _achievementService.checkAndUnlockAchievements(context: context);
+      
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;

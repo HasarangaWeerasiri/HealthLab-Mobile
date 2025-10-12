@@ -4,7 +4,6 @@ import 'userprofile_screen.dart';
 import 'new_experiment1_screen.dart';
 import 'my_experiments_screen.dart';
 import '../services/draft_experiment_service.dart';
-import '../widgets/custom_navigation_bar.dart';
 
 class CreateExperimentsScreen extends StatefulWidget {
   const CreateExperimentsScreen({super.key});
@@ -14,7 +13,6 @@ class CreateExperimentsScreen extends StatefulWidget {
 }
 
 class _CreateExperimentsScreenState extends State<CreateExperimentsScreen> {
-  int _selectedIndex = 2; // plus highlighted
   List<Map<String, dynamic>> _drafts = const [];
   late final List<_Template> _templates;
 
@@ -162,44 +160,7 @@ class _CreateExperimentsScreenState extends State<CreateExperimentsScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomepageScreen(),
-          ),
-        );
-        break;
-      case 1: // My Experiments
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyExperimentsScreen(),
-          ),
-        );
-        break;
-      case 2: // Create Experiment (current screen)
-        // Already on create experiments screen, do nothing
-        break;
-      case 3: // Profile
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const UserProfileScreen(),
-          ),
-        );
-        break;
-    }
   }
 }
 

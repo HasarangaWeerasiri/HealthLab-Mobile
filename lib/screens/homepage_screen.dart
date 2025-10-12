@@ -6,7 +6,6 @@ import 'create_experiments_screen.dart';
 import 'experiment_details_screen.dart';
 import '../widgets/experiment_details_modal.dart';
 import 'my_experiments_screen.dart';
-import '../widgets/custom_navigation_bar.dart';
 import 'qr_scanner_screen.dart';
 
 class HomepageScreen extends StatefulWidget {
@@ -17,7 +16,6 @@ class HomepageScreen extends StatefulWidget {
 }
 
 class _HomepageScreenState extends State<HomepageScreen> {
-  int _selectedIndex = 0;
   final TextEditingController _searchCtrl = TextEditingController();
   String? _selectedCategory;
   late final List<String> _categories;
@@ -190,6 +188,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 final query = _searchCtrl.text.trim().toLowerCase();
                 final filtered = docs.where((d) {
                   final data = d.data();
+                  // Filter out deleted experiments
+                  if (data['deleted'] == true) return false;
+                  
                   final title = (data['title'] as String? ?? '').toLowerCase();
                   final desc = (data['description'] as String? ?? '').toLowerCase();
                   if (_selectedCategory != null && data['category'] != _selectedCategory) return false;
@@ -229,45 +230,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
           ),
         ],
       ),
-      // Floating Navigation Bar
-      bottomNavigationBar: CustomNavigationBar(
-        selectedIndex: _selectedIndex,
-        onTap: _handleNavigation,
-      ),
     );
-  }
-
-  void _handleNavigation(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Home (current screen)
-        // Already on homepage, do nothing
-        break;
-      case 1: // My Experiments
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const MyExperimentsScreen(),
-          ),
-        );
-        break;
-      case 2: // Create Experiment
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const CreateExperimentsScreen(),
-          ),
-        );
-        break;
-      case 3: // Profile
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const UserProfileScreen(),
-          ),
-        );
-        break;
-    }
   }
 
   Future<void> _onRefresh() async {
