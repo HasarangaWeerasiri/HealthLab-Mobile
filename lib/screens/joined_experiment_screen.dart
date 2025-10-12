@@ -206,8 +206,8 @@ class _JoinedExperimentScreenState extends State<JoinedExperimentScreen> {
       backgroundColor: const Color(0xFF00432D),
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Fixed top bar with back button and action buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
@@ -257,121 +257,134 @@ class _JoinedExperimentScreenState extends State<JoinedExperimentScreen> {
               ),
             ),
 
-            // Title and emoji image area
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.description,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 16,
-                                height: 1.45,
-                              ),
+            // Scrollable content area
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title and emoji image area
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
                             ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                // Leave Experiment button
-                                ElevatedButton(
-                                  onPressed: _isLeaving ? null : _confirmAndLeave,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFF875F),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  ),
-                                  child: _isLeaving
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      widget.description,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        fontSize: 16,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 8,
+                                      children: [
+                                        // Leave Experiment button
+                                        ElevatedButton(
+                                          onPressed: _isLeaving ? null : _confirmAndLeave,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFF875F),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                           ),
-                                        )
-                                      : const Text(
-                                          'Leave Experiment',
-                                          style: TextStyle(fontWeight: FontWeight.w700),
+                                          child: _isLeaving
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                  ),
+                                                )
+                                              : const Text(
+                                                  'Leave Experiment',
+                                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                                ),
                                         ),
+                                        // Add daily entry button
+                                        ElevatedButton(
+                                          onPressed: (!_isLoading && canAdd) ? _openDailyEntryDialog : _handleAddDisabled,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFFCDEDC6),
+                                            foregroundColor: const Color(0xFF00432D),
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          ),
+                                          child: Text(
+                                            _entriesCount >= _durationDays && _durationDays > 0
+                                                ? 'Completed'
+                                                : 'Add daily entry',
+                                            style: const TextStyle(fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                // Add daily entry button (unstyled action for now)
-                                ElevatedButton(
-                                  onPressed: (!_isLoading && canAdd) ? _openDailyEntryDialog : _handleAddDisabled,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFCDEDC6),
-                                    foregroundColor: const Color(0xFF00432D),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  ),
-                                  child: Text(
-                                    _entriesCount >= _durationDays && _durationDays > 0
-                                        ? 'Completed'
-                                        : 'Add daily entry',
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(width: 16),
+                              // Runner emoji image placeholder to resemble wireframe
+                              const Text(
+                                '🏃‍♂️',
+                                style: TextStyle(fontSize: 84),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Analytics heading
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        'Analytics',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.95),
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // Runner emoji image placeholder to resemble wireframe
-                      const Text(
-                        '🏃‍♂️',
-                        style: TextStyle(fontSize: 84),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+                    ),
+                    const SizedBox(height: 12),
 
-            const SizedBox(height: 20),
-
-            // Analytics heading (section not implemented per request)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text(
-                'Analytics',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.95),
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                    // Analytics section with dynamic charts
+                    ExperimentAnalytics(
+                      experimentId: widget.experimentId,
+                      fields: _fields,
+                      durationDays: _durationDays,
+                    ),
+                    
+                    // Add bottom padding for better scrolling experience
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-
-            // Analytics section with dynamic charts
-            ExperimentAnalytics(
-              experimentId: widget.experimentId,
-              fields: _fields,
-              durationDays: _durationDays,
-            ),
-            const Spacer(),
           ],
         ),
       ),
